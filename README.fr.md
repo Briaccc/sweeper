@@ -76,16 +76,30 @@ avec une installation standard, sweeper les trouve seul. Sinon l'écran
 
 ### Docker
 
+Une image toute prête est publiée pour amd64 et arm64 :
+`ghcr.io/briaccc/sweeper` (`latest`, ou une version comme `1.0`). Pas besoin de
+cloner le dépôt :
+
 ```bash
-cp docker-compose.example.yml docker-compose.yml   # puis l'adapter
-docker compose up -d
-docker compose logs sweeper                        # affiche l'URL avec le jeton
+mkdir sweeper && cd sweeper
+curl -fsSLo docker-compose.yml https://raw.githubusercontent.com/Briaccc/sweeper/main/docker-compose.example.yml
+mkdir sweeper-config             # doit appartenir à l'utilisateur de `user:` (1000:1000 par défaut)
+docker compose up -d             # après avoir adapté docker-compose.yml
+docker compose logs sweeper      # affiche l'URL avec le jeton
 ```
 
 L'exemple monte le dossier de configuration de Plex en lecture seule, vos
 médias, et un volume `/config` qui contient `config.toml` et l'état. Lisez
 [Conteneurs et correspondance de chemins](#conteneurs-et-correspondance-de-chemins)
 avant de démarrer.
+
+- Le conteneur ne tourne pas en root : réglez `user:` sur le propriétaire de vos
+  médias (`id -u`:`id -g`). S'il ne peut pas écrire dans `/config`, il s'arrête
+  aussitôt et explique comment corriger.
+- Il se déclare *healthy* une fois le premier inventaire calculé.
+- Mise à jour : `docker compose pull && docker compose up -d`.
+- Pour construire l'image vous-même, clonez le dépôt et remplacez `image:` par
+  `build: .` dans le fichier compose.
 
 ## Connecter les services
 

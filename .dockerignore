@@ -8,3 +8,6 @@ test_*.py
 test_*.mjs
 e2e_fakes.py
 sweeper-export-*.tar.gz
+.github/
+*.md
+docker-compose*.yml

@@ -2,10 +2,12 @@
 # anything left out can be set from the Connections screen instead.
 services:
   sweeper:
-    build: .
+    image: ghcr.io/briaccc/sweeper:latest   # published for amd64 and arm64
+    # build: .                              # or build it yourself from a clone
     container_name: sweeper
-    # Run as the owner of your media files: sweeper reads them to compute
-    # hardlinks, and "Tidy into a folder" renames files.
+    # Run as the owner of your media files (`id -u`:`id -g` on the host): sweeper
+    # reads them to follow hardlinks, and "Tidy into a folder" renames files.
+    # The folder mounted on /config must belong to that user too.
     user: "1000:1000"
     ports:
       # Loopback only. Put a reverse proxy in front, or use an SSH tunnel.

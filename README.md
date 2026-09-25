@@ -75,15 +75,29 @@ screen opens: enter each URL and API key, click **Test**, then **Save**.
 
 ### Docker
 
+A ready-made image is published for amd64 and arm64:
+`ghcr.io/briaccc/sweeper` (`latest`, or a version such as `1.0`). No clone
+needed:
+
 ```bash
-cp docker-compose.example.yml docker-compose.yml   # then edit it
-docker compose up -d
-docker compose logs sweeper                        # shows the URL with the token
+mkdir sweeper && cd sweeper
+curl -fsSLo docker-compose.yml https://raw.githubusercontent.com/Briaccc/sweeper/main/docker-compose.example.yml
+mkdir sweeper-config             # must belong to the user set in `user:` (1000:1000 by default)
+docker compose up -d             # after editing docker-compose.yml
+docker compose logs sweeper      # shows the URL with the token
 ```
 
 The example mounts Plex's config folder read-only, your media and a `/config`
 volume that holds `config.toml` and the state. Read
 [Containers and path mapping](#containers-and-path-mapping) before you start.
+
+- The container does not run as root: set `user:` to the owner of your media
+  (`id -u`:`id -g`). If it cannot write to `/config`, it stops at once and
+  says how to fix it.
+- It reports itself *healthy* once the first inventory is done.
+- Upgrade with `docker compose pull && docker compose up -d`.
+- To build the image yourself, clone the repository and replace `image:` with
+  `build: .` in the compose file.
 
 ## Connecting the services
 
