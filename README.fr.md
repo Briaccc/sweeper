@@ -173,9 +173,9 @@ qui les retiennent, et ses garde-fous seed et copie unique seraient aveugles.
 
 Quatre onglets ; l'essentiel devant, le reste replié.
 
-- **Tableau de bord** — trois chiffres (occupation, libérable maintenant,
-  libérable sous 30 jours), où partent les octets, les paliers d'hébergement
-  avec l'économie et une prévision de saturation, l'occupation dans le temps.
+- **Tableau de bord** — trois chiffres (occupation du disque, libérable
+  maintenant, libérable sous 30 jours), où partent les octets, et l'occupation
+  dans le temps avec une prévision du moment où le disque sera plein.
 - **Médiathèque** — une liste, une recherche, un sélecteur « quoi afficher »
   (jamais vu, dormant, candidats, bloqués, en cours, protégés, hors *arr) et une
   bascule **Bibliothèque / Seed seul** pour les données que seul un torrent
@@ -345,9 +345,6 @@ n'importe quelle réponse `/api/state` enregistrée.
   Plex.
 - **qBittorrent uniquement** comme client torrent.
 - **API v3** de Radarr/Sonarr (Radarr 3+, Sonarr 3 et 4).
-- Les paliers d'hébergement (`[[tier]]`) et une commande de quota de
-  l'hébergeur (`quota_command`) sont des options du tableau de bord ; sans eux,
-  sweeper mesure le système de fichiers.
 
 ## Licence
 

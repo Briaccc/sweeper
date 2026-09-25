@@ -75,17 +75,16 @@
 state_dir = "~/.local/state/sweeper"
 
 # --------------------------------------------------------------------------
-# Storage
+# Disk
 #
-# A managed host often exposes a tool that knows the plan size, which the
-# filesystem cannot report (a shared array reports the whole array). Without
-# one, sweeper measures the filesystem at `path`.
+# The dashboard shows the usage of the disk holding `path` (SWEEPER_STORAGE_PATH
+# overrides it). If the filesystem reports the wrong size — a quota on a shared
+# disk, for instance — a command can report it instead.
 # --------------------------------------------------------------------------
 
 [storage]
-# Any command printing {"plan": <GB>, "used": <GB>, "free": <GB>} on stdout.
-# quota_command = ["/usr/local/bin/quota", "--raw"]
 path = "~"
+# quota_command = ["/path/to/script"]   # prints {"total": GB, "used": GB, "free": GB}
 
 [behaviour]
 # false = the title can be requested and downloaded again later
@@ -176,11 +175,13 @@ apply_rules = false
 apply_watchlist = true
 
 # --------------------------------------------------------------------------
-# Hosting plans, for the dashboard to price the space you free. Optional.
+# Optional pricing tiers: capacities and what they cost. When set, the
+# dashboard shows which ones your usage fits in and what freeing space saves.
+# Left out, none of this appears.
 # --------------------------------------------------------------------------
 
 # [[tier]]
-# name = "small"
-# gb = 3900
+# name = "S"
+# gb = 4000
 # price = 20
 # currency = "EUR"

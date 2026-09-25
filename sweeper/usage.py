@@ -1,9 +1,8 @@
 """Daily disk usage log.
 
-The goal is a hosting tier, not an instantaneous figure. Without a time series
-there is no way to tell whether cleanup is gaining ground or growth is catching
-up with it. Nothing on the machine keeps that history: not Plex, not the *arr,
-not the hosting provider.
+A single figure says little. Without a time series there is no way to tell
+whether cleanup is gaining ground or growth is catching up with it, and
+nothing keeps that history: not Plex, not the *arr.
 
 One sample per day is enough — the day's last sample overwrites the previous one.
 """

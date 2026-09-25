@@ -43,11 +43,12 @@ ASSETS = Path(__file__).resolve().parent.parent / "webui"
 
 
 def read_quota(cfg: Config) -> dict[str, float]:
-    """How much of the allowance is used.
+    """Disk capacity and usage.
 
-    Managed hosts often expose a quota tool that knows the plan size, which the
-    filesystem does not — a shared filesystem reports the whole array. Use that
-    tool when one is configured, and fall back to the filesystem otherwise.
+    Measured on the filesystem holding `[storage] path`. When the filesystem
+    reports the wrong size (a quota on a shared disk, for instance), an optional
+    command can report it instead: `quota_command`, printing
+    {"total": GB, "used": GB, "free": GB}.
     """
     if cfg.quota_command:
         try:
@@ -57,7 +58,7 @@ def read_quota(cfg: Config) -> dict[str, float]:
             ).stdout
             raw = json.loads(output)
             return {
-                "plan_gb": float(raw["plan"]),
+                "plan_gb": float(raw["total"] if "total" in raw else raw["plan"]),
                 "used_gb": float(raw["used"]),
                 "free_gb": float(raw["free"]),
                 "source": "quota command",

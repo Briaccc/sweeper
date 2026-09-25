@@ -96,7 +96,7 @@ function renderDash() {
     el('div', { class: 'card kpi' },
       el('div', { class: 'label', text: t('Occupation') }),
       el('div', { class: 'value hero num', text: go(q.used_gb * 1e9) }),
-      el('div', { class: 'note' }, t('sur {plan} · ', { plan: go(q.plan_gb * 1e9) }), el('b', { text: pct + ' %' }))),
+      el('div', { class: 'note' }, t('sur {total} · ', { total: go(q.plan_gb * 1e9) }), el('b', { text: pct + ' %' }))),
     el('div', { class: 'card kpi' },
       el('div', { class: 'label', text: t('Libérable maintenant') }),
       el('div', { class: 'value num', text: go(tot.libérable_maintenant + S.orphelins_totaux.prêts) }),
@@ -107,7 +107,7 @@ function renderDash() {
       el('div', { class: 'note' }, t('quand le seed sera payé'))),
   );
 
-  // --- stacked bar: the plan's capacity is 100 % of the width
+  // --- stacked bar: the disk's capacity is 100 % of the width
   const plan = q.plan_gb * 1e9 || 1;
   const parts = [
     ['s1', t('Bibliothèque vue'), c.vue],
@@ -131,7 +131,7 @@ function renderDash() {
     return node;
   }), el('div', { class: 'free', style: `width:${free / plan * 100}%`, title: `${t('Libre')} — ${go(free)}` }));
 
-  // --- marks for the plans at or below the current one
+  // --- marks for the tiers at or below the current capacity (if any are configured)
   $('#ticks').replaceChildren(...S.paliers
     .filter(tier => tier.gb <= q.plan_gb + 50)
     .map(tier => el('div', { class: 'tick', style: `left:${tier.gb / q.plan_gb * 100}%` },
@@ -160,7 +160,8 @@ function renderDash() {
   $('#growthX').replaceChildren(...months.map(m =>
     el('div', { class: 'col' }, el('div', { class: 'x', text: m.mois.slice(2).replace('-', '/') }))));
 
-  // --- plans
+  // --- pricing tiers: optional, shown only when [[tier]] is configured
+  $('#tiersCard').hidden = !S.paliers.length;
   $('#tiers').replaceChildren(...S.paliers.map(tier => el('div',
     { class: 'tier' + (tier.actuel ? ' current' : '') },
     el('div', { class: 'n', text: tier.nom + (tier.actuel ? ' — ' + t('actuel') : '') }),
@@ -205,7 +206,7 @@ function renderDash() {
 
 const tient = tier => S.quota.used_gb < tier.gb;
 
-/** How long until the plan is full, at the observed rate.
+/** How long until the disk is full, at the observed rate.
  *  Two readings: the *net* rate (daily readings, when there are enough) and
  *  the gross *intake* rate (12 months of Plex imports), more pessimistic
  *  since it ignores deletions. */
@@ -213,11 +214,11 @@ function renderFullForecast() {
   const q = S.quota, trend = S.occupation.tendance, gross = S.croissance_moyenne;
   const free = (q.plan_gb - q.used_gb) * 1e9;
   const box = $('#fullHint');
-  if (free <= 0) { box.textContent = t('Le plan est plein.'); return; }
+  if (free <= 0) { box.textContent = t('Le disque est plein.'); return; }
   const parts = [];
   if (trend.fiable && trend.par_jour > 0) {
     const left = free / trend.par_jour;
-    parts.push(t('Au rythme net des {days} derniers jours (+{rate}/j), le plan est plein dans {eta}.', {
+    parts.push(t('Au rythme net des {days} derniers jours (+{rate}/j), le disque sera plein dans {eta}.', {
       days: trend.jours, rate: go(trend.par_jour),
       eta: left < 60 ? t('{n} jours', { n: Math.round(left) }) : t('{n} mois', { n: dec(left / 30) }) }));
   } else if (trend.fiable && trend.par_jour <= 0) {
@@ -323,7 +324,7 @@ function renderUsage() {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const f = n => n.toFixed(1);
 
-  // the current plan is often a tier itself: one mark, one label
+  // the current capacity is often a tier itself: one mark, one label
   const isPlan = tier => Math.abs(tier.gb * 1e9 - plan) / plan < 0.01;
   const rule = (v, label) => {
     const ty = y(v);
@@ -331,9 +332,9 @@ function renderUsage() {
       + `<text class="rule-label" x="${padL + 4}" y="${f(ty - 5)}" font-size="11" fill="var(--text-3)">${label}</text>`;
   };
   const grid = tiers.map(tier => rule(tier.gb * 1e9,
-    `${esc(tier.nom)} · ${nf.format(tier.gb)} ${t('Go')}${isPlan(tier) ? ' ' + t('(plan actuel)') : ''}`)).join('');
+    `${esc(tier.nom)} · ${nf.format(tier.gb)} ${t('Go')}${isPlan(tier) ? ' ' + t('(palier actuel)') : ''}`)).join('');
   const planLine = tiers.some(isPlan) ? ''
-    : rule(plan, `${t('plan')} · ${nf.format(Math.round(plan / 1e9))} ${t('Go')}`);
+    : rule(plan, `${t('capacité')} · ${nf.format(Math.round(plan / 1e9))} ${t('Go')}`);
 
   const pts = samples.map((s, i) => `${f(x(i))},${f(y(s.occupé))}`).join(' ');
   const last = samples[samples.length - 1], lx = x(samples.length - 1), ly = y(last.occupé);

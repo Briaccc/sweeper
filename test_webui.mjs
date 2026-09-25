@@ -137,7 +137,17 @@ check('les segments totalisent 100 %', Math.abs(total - 100) < 0.5, `${total.toF
 check('légende présente pour chaque segment', $('#stackLegend').children.length === 5);
 check('histogramme : une colonne par mois', $('#growth').children.length === state.croissance.length);
 check('un bloc par palier', $('#tiers').children.length === state.paliers.length);
-check('conseil de palier rédigé', $('#tierHint').textContent.length > 30, '« ' + $('#tierHint').textContent.slice(0, 64) + '… »');
+if (state.paliers.length) {
+  check('paliers configurés : carte visible et conseil rédigé', $('#tiersCard').hidden === false
+    && $('#tierHint').textContent.length > 30, '« ' + $('#tierHint').textContent.slice(0, 64) + '… »');
+} else {
+  // no [[tier]]: a plain disk view, no pricing anywhere
+  check('sans palier : carte des paliers masquée, aucun repère sur la barre',
+    $('#tiersCard').hidden === true && $('#ticks').children.length === 0);
+  check('sans palier : ni prix ni palier dans le tableau de bord',
+    !/palier|tier\b|€|\$/i.test([...$('#dash').querySelectorAll('*')].filter((n) => !n.closest('[hidden]'))
+      .map((n) => n.childNodes).flatMap((c) => [...c]).filter((c) => c.nodeType === 3).map((c) => c.nodeValue).join(' ')));
+}
 check('prévision de saturation rédigée', $('#fullHint').textContent.length > 20, '« ' + $('#fullHint').textContent.slice(0, 70) + '… »');
 check('horodatage affiché', $('#stamp').textContent.startsWith(tr('calculé {time}').split(' ')[0]));
 const errBox = $('#errorBanner');

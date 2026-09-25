@@ -166,9 +166,9 @@ its seed and only-copy safeguards would be blind.
 
 Four tabs; the essentials up front, the rest folded away.
 
-- **Dashboard** — three figures (usage, freeable now, freeable within 30 days),
-  where the bytes go, hosting plans with the saving and a saturation forecast,
-  usage over time.
+- **Dashboard** — three figures (disk usage, freeable now, freeable within 30
+  days), where the bytes go, and disk usage over time with a forecast of when
+  the disk fills up.
 - **Library** — one list, a search box, a "what to show" selector (never
   watched, dormant, candidates, blocked, being watched, protected, outside
   *arr), and a **Library / Seed-only** toggle for data only a torrent still
@@ -326,9 +326,6 @@ any saved `/api/state` payload.
 - **Plex only** — no Jellyfin or Emby: watch history comes from Plex's database.
 - **qBittorrent only** as a torrent client.
 - Radarr/Sonarr **API v3** (Radarr 3+, Sonarr 3 and 4).
-- Hosting plans (`[[tier]]`) and a provider quota command (`quota_command`)
-  are optional extras for the dashboard; without them sweeper measures the
-  filesystem.
 
 ## License
 

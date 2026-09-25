@@ -36,25 +36,25 @@
 
   <div class="card" style="margin-bottom:14px">
     <h2>Où partent les octets</h2>
-    <p class="sub">Occupation réelle, hardlinks dédupliqués. Les repères marquent les paliers d'offre.</p>
+    <p class="sub">Occupation réelle du disque, hardlinks comptés une seule fois.</p>
     <div class="stack" id="stack"></div>
     <div class="ticks" id="ticks"></div>
     <div class="legend" id="stackLegend"></div>
   </div>
 
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
-    <div class="card">
-      <h2>Paliers d'hébergement</h2>
-      <p class="sub">Ce que coûte chaque offre, et celles où l'occupation actuelle tient.</p>
+    <div class="card" id="tiersCard" hidden>
+      <h2>Paliers</h2>
+      <p class="sub">Ce que coûte chaque palier, et ceux où l'occupation actuelle tient.</p>
       <div class="tiers" id="tiers"></div>
       <p class="sub" id="tierHint" style="margin:14px 0 0"></p>
-      <p class="sub" id="fullHint" style="margin:8px 0 0"></p>
     </div>
     <div class="card">
       <h2>Occupation dans le temps</h2>
       <p class="sub">Un relevé par jour : le ménage gagne-t-il du terrain ?</p>
       <div id="usageChart"></div>
       <p class="sub" id="usageNote" style="margin:12px 0 0"></p>
+      <p class="sub" id="fullHint" style="margin:8px 0 0"></p>
     </div>
   </div>
 </section>

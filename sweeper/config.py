@@ -117,7 +117,7 @@ class Limits:
 
 @dataclass
 class Tier:
-    """A hosting plan tier, to put usage and cost in context."""
+    """An optional pricing tier: a capacity and what it costs."""
 
     name: str
     gb: float
@@ -143,7 +143,7 @@ class Config:
     plex_db: Path | None = None
     #: empty means "derive from the applications themselves"
     link_roots: list[Path] = field(default_factory=list)
-    #: optional external command printing {"plan":…,"used":…,"free":…} in GB
+    #: optional external command printing {"total":…,"used":…,"free":…} in GB
     quota_command: list[str] = field(default_factory=list)
     #: filesystem to measure when no quota command is available
     storage_path: Path = HOME
@@ -525,7 +525,7 @@ def _save(path: Path, lines: list[str]) -> None:
     """Write the config, keeping the previous version as .bak.
 
     The file may hold API keys and passwords: both copies are owner-only (600)
-    — on a shared seedbox the default umask would leave them readable by all.
+    — on a shared machine the default umask would leave them readable by all.
     """
     backup = path.with_suffix(path.suffix + ".bak")
     backup.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
