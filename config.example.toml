@@ -1,0 +1,186 @@
+# sweeper — example configuration
+#
+# On first start sweeper copies this file to config.toml. Every setting is
+# optional: left out, sweeper discovers what it can from the applications
+# themselves (`python3 sweeper.py init` writes a config.toml from what it finds).
+#
+# Each connection setting is resolved in this order:
+#   1. an environment variable (SWEEPER_RADARR_URL, SWEEPER_RADARR_API_KEY, … —
+#      see the README), which the web interface then shows greyed out;
+#   2. this file — which is what the Connections screen writes;
+#   3. auto-discovery: Radarr/Sonarr config.xml, Seerr settings.json,
+#      cross-seed's config for qBittorrent, the Plex database's usual places.
+#
+# When API keys or passwords are stored here, the file is kept owner-only
+# (chmod 600) and ignored by git. The interface never displays them again.
+
+# --------------------------------------------------------------------------
+# Services
+#
+# Keys common to every service:
+#   url, api_key       where to reach it (username/password for qBittorrent)
+#   enabled = false    turn it off: no qBittorrent on a Usenet-only setup, no
+#                      Sonarr if you only keep movies… Plex cannot be disabled.
+#   path_map           when the app sees the files under other paths than
+#                      sweeper (containers): [["path in the app", "path here"]]
+# --------------------------------------------------------------------------
+
+# Radarr: Settings → General → Security → API Key
+[services.radarr]
+# url = "http://radarr:7878"
+# api_key = "..."
+# path_map = [["/movies", "/data/media/movies"]]
+# config_xml = "~/.config/Radarr/config.xml"   # native install, read for the key
+# host = "127.0.0.1"                           # host to reach a discovered port on
+
+# Sonarr: Settings → General → Security → API Key
+[services.sonarr]
+# url = "http://sonarr:8989"
+# api_key = "..."
+
+# Overseerr, Jellyseerr and Seerr share the same API (Settings → General → API
+# Key). Optional: without it sweeper works, it just cannot clean up requests.
+[services.seerr]
+# url = "http://127.0.0.1:5055"
+# api_key = "..."
+# settings_json = "~/.config/jellyseerr/settings.json"
+
+# qBittorrent: its web UI credentials. The only torrent client supported.
+[services.qbittorrent]
+# url = "http://127.0.0.1:8080"
+# username = "admin"
+# password = "..."
+# from_cross_seed = "~/.cross-seed/config.js"  # reuse cross-seed's credentials
+# enabled = false                              # Usenet only
+
+# Plex: sweeper reads a copy of its library database, so the file must be
+# reachable (read-only is enough). Found automatically in the usual places for
+# Linux, macOS, Windows and common container mounts.
+[services.plex]
+# database = "/config/Library/Application Support/Plex Media Server/Plug-in Support/Databases/com.plexapp.plugins.library.db"
+# path_map = [["/media", "/data/media"]]
+
+# --------------------------------------------------------------------------
+# Paths
+# --------------------------------------------------------------------------
+
+[paths]
+
+# link_roots: every directory tree that may hold a hardlink to the same bytes.
+# Derived from the *arr root folders, the torrents' save paths and cross-seed's
+# linkDirs. Override only if that misses a tree — a missing tree silently
+# breaks the freed-bytes arithmetic.
+# link_roots = ["~/downloads", "~/media", "~/cross-seed-links"]
+
+state_dir = "~/.local/state/sweeper"
+
+# --------------------------------------------------------------------------
+# Storage
+#
+# A managed host often exposes a tool that knows the plan size, which the
+# filesystem cannot report (a shared array reports the whole array). Without
+# one, sweeper measures the filesystem at `path`.
+# --------------------------------------------------------------------------
+
+[storage]
+# Any command printing {"plan": <GB>, "used": <GB>, "free": <GB>} on stdout.
+# quota_command = ["/usr/local/bin/quota", "--raw"]
+path = "~"
+
+[behaviour]
+# false = the title can be requested and downloaded again later
+add_import_exclusion = false
+# true = also delete the Seerr media record, not just the request. That is what
+# makes the title requestable again instead of staying "Available".
+delete_seerr_media = true
+
+[web]
+port = 29320
+# Loopback only by default. Reach it over an SSH tunnel, or put a reverse proxy
+# in front. Binding 0.0.0.0 exposes a small home-grown HTTP server to your
+# network — the access token protects it, but a proxy is the better answer.
+# (The Docker image listens on 0.0.0.0 inside the container; the compose file
+# publishes the port on 127.0.0.1 only.)
+host = "127.0.0.1"
+
+[ui]
+# "en" or "fr"; left out, sweeper follows the system locale. The selector in
+# the interface's header writes it; SWEEPER_LANG overrides it.
+# language = "en"
+
+# --------------------------------------------------------------------------
+# Retention rules
+#
+# Evaluated top to bottom; the first rule that matches wins, so order matters.
+# Every rule pairs a watch criterion with a minimum age: without that guard you
+# delete new arrivals nobody has had time to watch yet.
+# --------------------------------------------------------------------------
+
+[[rule]]
+name = "series nobody ever started"
+media = "series"          # movie | series | season
+never_watched = true
+min_age_days = 45
+
+[[rule]]
+name = "movies nobody ever started"
+media = "movie"
+never_watched = true
+min_age_days = 45
+
+[[rule]]
+name = "dormant series"
+media = "series"
+unwatched_days = 180
+min_age_days = 45
+# max_distinct_viewers = 1   # spare what several people watched
+enabled = false
+
+# --------------------------------------------------------------------------
+# Seeding obligations
+#
+# An item whose torrent has not met its obligation is postponed, never deleted.
+# Hosts of the same tracker are grouped on the second-to-last label of the
+# hostname, so tracker.example.org and tk.example.net share one rule named
+# "example". An exact hostname written here always wins over the group.
+# --------------------------------------------------------------------------
+
+[seeding]
+mode = "either"           # either (ratio OR time) | both | ignore
+min_ratio = 1.0
+min_seed_days = 30
+
+# [seeding.per_tracker."example"]
+# min_seed_days = 60
+
+[protect]
+tags = ["keep"]                  # a Radarr/Sonarr tag that forbids deletion
+titles = []                      # partial title matches
+requested_within_days = 30       # spare anything requested recently
+keep_torrent_if_shared = true    # do not break a still-useful season pack
+in_progress = true               # spare what someone started and never finished
+
+[limits]
+max_items_per_run = 25
+max_gb_per_run = 400
+
+# --------------------------------------------------------------------------
+# Unattended runs. Disabled by default: sweeper never deletes on its own until
+# you turn this on, from the Rules tab or here.
+# --------------------------------------------------------------------------
+
+[schedule]
+enabled = false
+interval_minutes = 360
+apply_rules = false
+apply_watchlist = true
+
+# --------------------------------------------------------------------------
+# Hosting plans, for the dashboard to price the space you free. Optional.
+# --------------------------------------------------------------------------
+
+# [[tier]]
+# name = "small"
+# gb = 3900
+# price = 20
+# currency = "EUR"

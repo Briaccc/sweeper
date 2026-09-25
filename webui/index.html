@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="fr" data-palette="#2a78d6,#eb6834,#1baf7a,#eda100">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sweeper</title>
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🧹</text></svg>">
+</head>
+<body>
+
+<header>
+  <div class="bar">
+    <div class="logo">sweeper <span id="stamp">chargement…</span></div>
+    <nav role="tablist">
+      <button role="tab" data-tab="dash" aria-selected="true">Tableau de bord</button>
+      <button role="tab" data-tab="library" aria-selected="false">Médiathèque</button>
+      <button role="tab" data-tab="rules" aria-selected="false">Règles</button>
+      <button role="tab" data-tab="plus" aria-selected="false">Plus</button>
+    </nav>
+    <select id="lang" class="lang" title="Langue / Language" aria-label="Langue / Language">
+      <option value="fr">FR</option><option value="en">EN</option>
+    </select>
+    <button class="act" id="refresh" title="Recalculer l'inventaire">Actualiser</button>
+  </div>
+</header>
+
+<main>
+<div id="setupBanner" hidden class="warnbox" style="margin-bottom:14px"></div>
+<div id="errorBanner" hidden class="warnbox" style="margin-bottom:14px;border-color:var(--bad);background:color-mix(in srgb, var(--bad) 10%, transparent)"></div>
+
+<!-- ------------------------------------------------------------ dashboard -->
+<section id="dash">
+  <div id="coverageWarning" hidden class="warnbox" style="margin-bottom:14px"></div>
+  <div class="grid kpis" id="kpis"></div>
+
+  <div class="card" style="margin-bottom:14px">
+    <h2>Où partent les octets</h2>
+    <p class="sub">Occupation réelle, hardlinks dédupliqués. Les repères marquent les paliers d'offre.</p>
+    <div class="stack" id="stack"></div>
+    <div class="ticks" id="ticks"></div>
+    <div class="legend" id="stackLegend"></div>
+  </div>
+
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
+    <div class="card">
+      <h2>Paliers d'hébergement</h2>
+      <p class="sub">Ce que coûte chaque offre, et celles où l'occupation actuelle tient.</p>
+      <div class="tiers" id="tiers"></div>
+      <p class="sub" id="tierHint" style="margin:14px 0 0"></p>
+      <p class="sub" id="fullHint" style="margin:8px 0 0"></p>
+    </div>
+    <div class="card">
+      <h2>Occupation dans le temps</h2>
+      <p class="sub">Un relevé par jour : le ménage gagne-t-il du terrain ?</p>
+      <div id="usageChart"></div>
+      <p class="sub" id="usageNote" style="margin:12px 0 0"></p>
+    </div>
+  </div>
+</section>
+
+<!-- -------------------------------------------------------------- library -->
+<section id="library" hidden>
+  <div class="toolbar">
+    <div class="chips" role="tablist" aria-label="Vue">
+      <button class="chip" id="viewMedia" aria-pressed="true">Bibliothèque</button>
+      <button class="chip" id="viewOrphans" aria-pressed="false">Seed seul</button>
+    </div>
+    <input type="search" id="q" placeholder="Rechercher un titre…" autocomplete="off">
+    <select id="view" title="Quoi afficher">
+      <option value="all">Tout</option>
+      <option value="never">Jamais vu</option>
+      <option value="idle">Dormant &gt; 6 mois</option>
+      <option value="candidate">Candidats à la suppression</option>
+      <option value="soon">Bientôt disponibles</option>
+      <option value="blocked">Bloqués</option>
+      <option value="resuming">En cours de visionnage</option>
+      <option value="protected">Protégés</option>
+      <option value="unmanaged">Hors *arr</option>
+    </select>
+    <select id="who" hidden></select>
+    <button class="chip" id="whoChip" hidden></button>
+    <span class="meta" id="count" style="margin-left:auto"></span>
+  </div>
+
+  <div id="mediaBlock" class="card" style="padding:14px 6px 4px">
+    <table>
+      <thead>
+        <tr>
+          <th class="plain" style="width:34px"><input type="checkbox" id="all"></th>
+          <th data-sort="title">Titre</th>
+          <th data-sort="library_bytes" class="r">Taille</th>
+          <th data-sort="freed_bytes" class="r">Libérable</th>
+          <th data-sort="last_viewed" class="hide-s">Dernier visionnage</th>
+          <th data-sort="state">État</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="noRows" hidden>Aucun élément ne correspond.</div>
+  </div>
+
+  <div id="orphans" hidden>
+    <p class="sub" id="orphanKpis"></p>
+    <div class="chips" style="margin-bottom:12px">
+      <button class="chip" data-o="ready" aria-pressed="false">Seed payé</button>
+      <button class="chip" data-o="soon" aria-pressed="false">Sous 30 jours</button>
+    </div>
+    <div class="card" style="padding:14px 6px 4px">
+      <table>
+        <thead>
+          <tr>
+            <th class="plain" style="width:34px"><input type="checkbox" id="allOrphans"></th>
+            <th data-osort="name">Contenu</th>
+            <th data-osort="bytes" class="r">Libérable</th>
+            <th data-osort="seed_days" class="r hide-s">Seed</th>
+            <th data-osort="unblocks_in_days">État</th>
+          </tr>
+        </thead>
+        <tbody id="orphanRows"></tbody>
+      </table>
+      <div class="empty" id="noOrphans" hidden>Aucune donnée hors bibliothèque.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------- rules -->
+<section id="rules" hidden>
+  <div class="toolbar">
+    <div>
+      <h2>Règles de rétention</h2>
+      <p class="sub" style="margin:0">De haut en bas, la première qui correspond l'emporte. Rien n'est supprimé sans validation.</p>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button class="act" id="addRule">Ajouter une règle</button>
+      <button class="act primary" id="saveRules" disabled>Enregistrer</button>
+    </div>
+  </div>
+  <div id="ruleList"></div>
+  <p class="sub" id="previewNote" style="margin:-2px 0 4px"></p>
+  <p class="sub" id="orderNote" style="margin:0 0 14px"></p>
+
+  <div class="card" style="margin-top:14px">
+    <h2>Passage automatique</h2>
+    <p class="sub">Désactivé par défaut : sweeper ne supprime jamais de lui-même tant que ce n'est pas coché.</p>
+    <div class="fields" id="schedule"></div>
+    <p class="sub" id="scheduleNote" style="margin:14px 0 0"></p>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h2>File d'attente</h2>
+    <p class="sub">Ce que tu as marqué « à supprimer dès que le seed sera payé ».</p>
+    <div id="queueList"></div>
+  </div>
+
+  <details class="card" style="margin-top:14px">
+    <summary>Protections</summary>
+    <p class="sub" id="guards" style="margin-top:12px"></p>
+    <h2 style="margin-top:14px;font-size:14px">Collections Plex protégées</h2>
+    <p class="sub">Les membres d'une collection cochée ne sont jamais candidats.</p>
+    <div class="fields" id="collectionsList"></div>
+  </details>
+
+  <details class="card" style="margin-top:14px">
+    <summary>Derniers travaux</summary>
+    <div id="recentJobs" style="margin-top:12px"></div>
+  </details>
+</section>
+
+<!-- ----------------------------------------------------------------- more -->
+<section id="plus" hidden>
+  <details class="card" id="connDetails" style="margin-bottom:14px">
+    <summary>Connexions — Radarr, Sonarr, Seerr, qBittorrent, Plex</summary>
+    <p class="sub" style="margin-top:12px">Les clés ne sont jamais réaffichées : laisse le champ vide
+      pour garder celle qui est enregistrée. Un champ grisé vient d'une variable d'environnement.
+      Tout service sauf Plex peut être désactivé (Usenet sans torrent, films sans Sonarr…).</p>
+    <div id="connections"></div>
+  </details>
+
+  <details class="card" open>
+    <summary>Demandes — qui demande quoi, et ce que ça devient</summary>
+    <div class="grid kpis" id="reqKpis" style="margin-top:14px"></div>
+    <div id="reqBars"></div>
+    <div class="legend">
+      <div><i style="background:var(--series-1)"></i>Regardé au moins une fois</div>
+      <div><i style="background:var(--series-2)"></i>Jamais regardé par personne</div>
+    </div>
+    <table style="margin-top:14px">
+      <thead><tr>
+        <th class="plain">Demandeur</th><th class="plain r">Demandes</th><th class="plain r hide-s">Sur 90 j</th>
+        <th class="plain r">Volume</th><th class="plain r">Jamais regardé</th><th class="plain hide-s">Exemples jamais regardés</th>
+      </tr></thead>
+      <tbody id="reqRows"></tbody>
+    </table>
+    <p class="sub" id="reqNote" style="margin-top:14px"></p>
+  </details>
+
+  <details class="card" style="margin-top:14px">
+    <summary>Trackers — obligations de seed</summary>
+    <p class="sub" style="margin-top:12px">Un élément dont un torrent n'a pas « payé » est reporté, jamais supprimé. Les hôtes d'un même tracker partagent une règle.</p>
+    <div class="fields" id="seedingGlobal"></div>
+    <div class="warnbox" id="seedingSim" style="margin-top:14px"></div>
+    <table style="margin-top:14px">
+      <thead><tr>
+        <th class="plain">Tracker</th><th class="plain r">Torrents</th><th class="plain r">Volume</th>
+        <th class="plain r">Retenu</th><th class="plain r hide-s">Attente max</th><th class="plain">Règle propre</th>
+      </tr></thead>
+      <tbody id="trackerRows"></tbody>
+    </table>
+    <div style="margin-top:12px;text-align:right"><button class="act primary" id="saveSeeding" disabled>Enregistrer</button></div>
+  </details>
+
+  <details class="card" style="margin-top:14px">
+    <summary>Croissance mensuelle</summary>
+    <p class="sub" style="margin-top:12px">Octets importés dans Plex, par mois.</p>
+    <div class="bars" id="growth"></div>
+    <div class="axis"></div>
+    <div class="bars" id="growthX" style="height:auto;align-items:flex-start"></div>
+  </details>
+
+  <details class="card" style="margin-top:14px">
+    <summary>Santé</summary>
+    <div id="health" style="margin-top:12px"></div>
+  </details>
+
+  <details class="card" style="margin-top:14px">
+    <summary>Historique des suppressions</summary>
+    <p class="sub" id="histSummary" style="margin-top:12px">Journal complet, le plus récent en premier.</p>
+    <table>
+      <thead><tr>
+        <th class="plain">Date</th><th class="plain">Titre</th>
+        <th class="plain r">Libéré</th><th class="plain hide-s">Actions effectuées</th><th class="plain"></th>
+      </tr></thead>
+      <tbody id="histRows"></tbody>
+    </table>
+    <div class="empty" id="noHist" hidden>Aucune suppression enregistrée.</div>
+  </details>
+</section>
+
+</main>
+
+<div class="actionbar" id="actionbar" hidden>
+  <span class="n"><b id="selN">0</b> sélectionné(s) · <b id="selGb">0 Go</b> libérables</span>
+  <button class="act" id="adoptBtn" hidden title="Confier à Radarr/Sonarr les éléments que Plex sert sans *arr">Adopter…</button>
+  <button class="act" id="queueBtn" title="Supprimer automatiquement dès que le seed sera payé">Mettre en file</button>
+  <button class="act" id="protectBtn">Protéger</button>
+  <button class="act" id="unprotectBtn">Retirer la protection</button>
+  <button class="act danger" id="deleteBtn">Supprimer…</button>
+</div>
+
+<div class="actionbar" id="orphanbar" hidden>
+  <span class="n"><b id="oselN">0</b> lot(s) · <b id="oselGb">0 Go</b> libérables</span>
+  <button class="act" id="oqueueBtn" title="Retirer automatiquement dès que le seed sera payé">Mettre en file</button>
+  <button class="act danger" id="odeleteBtn">Retirer les torrents…</button>
+</div>
+
+<dialog id="confirm">
+  <div class="head">
+    <h3 id="cTitle">Confirmer la suppression</h3>
+    <p class="sub" style="margin:0" id="cSub"></p>
+  </div>
+  <div class="body">
+    <ul id="cList"></ul>
+    <div class="warnbox" id="cZero" hidden></div>
+    <div class="warnbox" id="cWarn" hidden></div>
+    <label class="check" id="cForceWrap" hidden>
+      <input type="checkbox" id="cForce">
+      <span>Passer outre les obligations de seed. Le contenu part même si le ratio
+      ou l'ancienneté requis ne sont pas atteints — ça peut coûter un H&amp;R sur le tracker.</span>
+    </label>
+  </div>
+  <div class="body" id="cProgress" hidden>
+    <div class="track"><div class="fill" id="cBar"></div></div>
+    <p class="sub" id="cStatus" style="margin:10px 0 0"></p>
+  </div>
+  <div class="foot">
+    <button class="act" id="cCancel">Annuler</button>
+    <button class="act danger" id="cGo">Supprimer définitivement</button>
+  </div>
+</dialog>
+
+<dialog id="adoptDialog">
+  <div class="head">
+    <h3>Adopter dans Radarr / Sonarr</h3>
+    <p class="sub" style="margin:0" id="aSub"></p>
+  </div>
+  <div class="body">
+    <ul id="aList"></ul>
+    <div class="warnbox" id="aWarn" hidden></div>
+    <p class="sub" style="margin:12px 0 0">Rien n'est déplacé ni téléchargé : l'application
+      scanne le dossier existant et l'importe tel quel. Ensuite, les règles et la
+      suppression s'appliquent normalement.</p>
+  </div>
+  <div class="foot">
+    <button class="act" id="aCancel">Annuler</button>
+    <button class="act primary" id="aGo">Adopter</button>
+  </div>
+</dialog>
+
+<script src="/assets/i18n.js"></script>
+<script src="/assets/app.js"></script>
+</body>
+</html>

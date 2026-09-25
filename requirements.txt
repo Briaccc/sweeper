@@ -1,0 +1,2 @@
+# sweeper itself needs only Python 3.11+ and requests.
+requests>=2.28

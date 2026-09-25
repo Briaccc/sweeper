@@ -1,0 +1,14 @@
+{
+  "name": "sweeper",
+  "private": true,
+  "description": "Test tooling only: jsdom renders the web UI in the test suite. sweeper itself needs nothing but Python and requests.",
+  "type": "module",
+  "scripts": {
+    "test": "python3 test_linkmap.py && python3 test_tidy.py && python3 test_i18n.py && npm run -s test:e2e",
+    "test:e2e": "python3 test_e2e.py && E2E_REMOTE=1 python3 test_e2e.py && E2E_REMOTE=1 E2E_NO_MAP=1 python3 test_e2e.py",
+    "test:live": "sh -c 'T=$(cat ${SWEEPER_STATE_DIR:-~/.local/state/sweeper}/token) && curl -sf --compressed \"http://127.0.0.1:${PORT:-29320}/api/state?token=$T\" -o /tmp/sweeper-state.json && node test_webui.mjs /tmp/sweeper-state.json'"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.3"
+  }
+}

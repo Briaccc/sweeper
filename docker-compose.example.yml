@@ -1,0 +1,34 @@
+# Copy to docker-compose.yml and adapt. Every SWEEPER_* variable is optional:
+# anything left out can be set from the Connections screen instead.
+services:
+  sweeper:
+    build: .
+    container_name: sweeper
+    # Run as the owner of your media files: sweeper reads them to compute
+    # hardlinks, and "Tidy into a folder" renames files.
+    user: "1000:1000"
+    ports:
+      # Loopback only. Put a reverse proxy in front, or use an SSH tunnel.
+      - "127.0.0.1:29320:29320"
+    environment:
+      SWEEPER_RADARR_URL: http://radarr:7878
+      SWEEPER_RADARR_API_KEY: ${RADARR_API_KEY}
+      SWEEPER_SONARR_URL: http://sonarr:8989
+      SWEEPER_SONARR_API_KEY: ${SONARR_API_KEY}
+      SWEEPER_SEERR_URL: http://overseerr:5055          # optional
+      SWEEPER_SEERR_API_KEY: ${SEERR_API_KEY}
+      SWEEPER_QBIT_URL: http://qbittorrent:8080          # optional (Usenet-only: SWEEPER_QBIT_ENABLED=false)
+      SWEEPER_QBIT_USERNAME: admin
+      SWEEPER_QBIT_PASSWORD: ${QBIT_PASSWORD}
+      SWEEPER_PLEX_DB: /plex/Library/Application Support/Plex Media Server/Plug-in Support/Databases/com.plexapp.plugins.library.db
+      SWEEPER_STORAGE_PATH: /data     # the disk whose usage the dashboard shows
+      # SWEEPER_LANG: fr
+    volumes:
+      - ./sweeper-config:/config
+      # Plex's config folder, read-only: sweeper reads watch history from its database.
+      - /path/to/plex/config:/plex:ro
+      # Your media and downloads. Mount them at the SAME path Radarr, Sonarr and
+      # qBittorrent use (e.g. /data, the usual single-tree layout) and no path
+      # mapping is needed. Otherwise, add a path_map per service in config.toml.
+      - /path/to/data:/data
+    restart: unless-stopped

@@ -1,0 +1,37 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: pip install -r requirements.txt
+      - run: npm ci
+      - run: npm test
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t sweeper .
+      - name: first start with an empty config volume
+        run: |
+          mkdir -p cfg && chmod 777 cfg
+          docker run -d --name sweeper -p 127.0.0.1:29320:29320 -v "$PWD/cfg:/config" sweeper
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:29320/ >/dev/null && break; sleep 1; done
+          curl -sf http://127.0.0.1:29320/ | grep -q "<title>sweeper"
+          docker logs sweeper
+          test -f cfg/config.toml

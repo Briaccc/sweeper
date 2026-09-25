@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sweeper — connexion</title>
+<link rel="stylesheet" href="/assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🧹</text></svg>">
+<style>
+  body { display: grid; place-items: center; min-height: 100vh; padding: 24px; }
+  .box { width: 100%; max-width: 420px; }
+  .box h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: -.02em; }
+  .box p.lead { color: var(--text-2); font-size: 14px; margin: 0 0 20px; }
+  .box label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .box input { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; padding: 10px 12px; }
+  .box button { width: 100%; margin-top: 12px; padding: 11px; }
+  .hint { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-2); }
+  .hint code { background: var(--surface-2); padding: 3px 7px; border-radius: 5px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; display: inline-block; margin-top: 6px; }
+  .err { color: var(--bad); font-size: 13px; margin-top: 10px; min-height: 18px; }
+</style>
+</head>
+<body>
+  <div class="card box">
+    <h1>sweeper</h1>
+    <p class="lead">Rétention de la médiathèque. Cette instance est protégée :
+      il faut le jeton d'accès pour entrer.</p>
+
+    <form id="f">
+      <label for="t">Jeton d'accès</label>
+      <input id="t" type="password" autocomplete="current-password" autofocus
+             placeholder="32 caractères" spellcheck="false">
+      <button class="act primary" type="submit" id="go">Entrer</button>
+      <div class="err" id="err"></div>
+    </form>
+
+    <div class="hint">
+      Le jeton s'affiche au démarrage de sweeper et se trouve dans le dossier d'état :
+      <code>~/.local/state/sweeper/token</code>
+      (Docker : <code>/config/state/token</code>).
+    </div>
+  </div>
+
+<script src="/assets/i18n.js"></script>
+<script src="/assets/login.js"></script>
+</body>
+</html>

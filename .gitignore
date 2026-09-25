@@ -1,0 +1,30 @@
+# Local configuration: holds API keys, passwords and this machine's paths
+config.toml
+config.toml.bak
+*.bak-*
+
+# Exports (config + state) written by `sweeper.py export`
+sweeper-export-*.tar.gz
+
+# Runtime state: deletion log, access token, usage readings, queue
+sweeper-web.log
+*.log
+state/
+
+# Docker: your own compose file and its config volume
+docker-compose.yml
+sweeper-config/
+
+# Node: jsdom, only for the UI tests
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
