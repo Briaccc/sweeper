@@ -170,13 +170,14 @@ Four tabs; the essentials up front, the rest folded away.
   days), where the bytes go, and disk usage over time with a forecast of when
   the disk fills up.
 - **Library** — one list, a search box, a "what to show" selector (never
-  watched, dormant, candidates, blocked, being watched, protected, outside
-  *arr), and a **Library / Seed-only** toggle for data only a torrent still
+  watched, dormant, candidates, coming up soon, blocked, being watched,
+  protected, outside *arr), and a **Library / Seed-only** toggle for data only a torrent still
   holds. Series expand into seasons. Select, then **Delete**, **Queue** (delete
   once seeding obligations are met), **Protect**, or **Adopt** what Plex serves
   without any *arr.
 - **Rules** — the rules with a live preview of what they would catch, the
-  automatic run (off by default), the queue, protected Plex collections.
+  automatic run (off by default), the queue, protected Plex collections and
+  the recent background jobs.
 - **More** — Connections, Requests (who asks for what, and whether anyone
   watches it), Trackers (seeding obligations), monthly growth, health, deletion
   history.

@@ -177,14 +177,15 @@ Quatre onglets ; l'essentiel devant, le reste replié.
   maintenant, libérable sous 30 jours), où partent les octets, et l'occupation
   dans le temps avec une prévision du moment où le disque sera plein.
 - **Médiathèque** — une liste, une recherche, un sélecteur « quoi afficher »
-  (jamais vu, dormant, candidats, bloqués, en cours, protégés, hors *arr) et une
+  (jamais vu, dormant, candidats, bientôt disponibles, bloqués, en cours,
+  protégés, hors *arr) et une
   bascule **Bibliothèque / Seed seul** pour les données que seul un torrent
   retient encore. Les séries se déplient par saison. Sélection, puis
   **Supprimer**, **Mettre en file** (supprimer dès que le seed sera payé),
   **Protéger**, ou **Adopter** ce que Plex sert sans *arr.
 - **Règles** — les règles avec l'aperçu de ce qu'elles attraperaient, le passage
   automatique (désactivé par défaut), la file d'attente, les collections Plex
-  protégées.
+  protégées et les derniers travaux de fond.
 - **Plus** — Connexions, Demandes (qui demande quoi, et si quelqu'un le
   regarde), Trackers (obligations de seed), croissance mensuelle, santé,
   historique des suppressions.
