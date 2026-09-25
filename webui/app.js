@@ -131,13 +131,6 @@ function renderDash() {
     return node;
   }), el('div', { class: 'free', style: `width:${free / plan * 100}%`, title: `${t('Libre')} — ${go(free)}` }));
 
-  // --- marks for the tiers at or below the current capacity (if any are configured)
-  $('#ticks').replaceChildren(...S.paliers
-    .filter(tier => tier.gb <= q.plan_gb + 50)
-    .map(tier => el('div', { class: 'tick', style: `left:${tier.gb / q.plan_gb * 100}%` },
-      el('i'), el('b', { text: tier.nom }),
-      el('s', { text: `${tier.prix} ${tier.devise}` }))));
-
   $('#stackLegend').replaceChildren(
     ...parts.map(([cls, label, bytes]) => el('div', {},
       el('i', { style: `background:var(--series-${cls[1]})` }),
@@ -160,51 +153,11 @@ function renderDash() {
   $('#growthX').replaceChildren(...months.map(m =>
     el('div', { class: 'col' }, el('div', { class: 'x', text: m.mois.slice(2).replace('-', '/') }))));
 
-  // --- pricing tiers: optional, shown only when [[tier]] is configured
-  $('#tiersCard').hidden = !S.paliers.length;
-  $('#tiers').replaceChildren(...S.paliers.map(tier => el('div',
-    { class: 'tier' + (tier.actuel ? ' current' : '') },
-    el('div', { class: 'n', text: tier.nom + (tier.actuel ? ' — ' + t('actuel') : '') }),
-    el('div', { class: 'p num', text: `${tier.prix} ${tier.devise}` }),
-    el('div', { class: 'd', text: t('{gb} Go / mois', { gb: nf.format(tier.gb) }) }),
-    el('div', { class: 'fit ' + (tient(tier) ? 'yes' : 'no'), text: tient(tier) ? t('tu y rentres') : t('trop juste') }))));
-
-  const current = S.paliers.find(tier => tier.actuel);
-  const cheaper = tier => !current || tier.prix < current.prix;
-  const best = S.paliers.filter(x => tient(x) && cheaper(x)).sort((a, b) => a.prix - b.prix)[0];
-  const saving = tier => t('{month} {cur}/mois, soit {year} {cur} par an', {
-    month: current.prix - tier.prix, year: (current.prix - tier.prix) * 12, cur: current.devise });
-
-  if (best) {
-    $('#tierHint').textContent = t("Avec {used} occupés, le palier {tier} suffit déjà : {saving} d'économie.",
-      { used: go(q.used_gb * 1e9), tier: best.nom, saving: saving(best) });
-  } else if (current) {
-    // nothing fits right now: say what would need freeing, and whether it is within reach
-    const now = tot.libérable_maintenant + S.orphelins_totaux.prêts;
-    const soon = now + S.libérable_sous_30j;
-    const used = q.used_gb * 1e9;
-    const target = S.paliers.filter(cheaper).sort((a, b) => b.gb - a.gb)[0];
-    if (!target) {
-      $('#tierHint').textContent = t('Tu es déjà au palier le moins cher.');
-    } else {
-      const need = used - target.gb * 1e9;
-      const vars = { need: go(need), tier: target.nom, saving: saving(target), now: go(now), soon: go(soon) };
-      $('#tierHint').textContent = now >= need
-        ? t("Il manque {need} pour descendre au palier {tier} ({saving}). Tu as {now} récupérables tout de suite et {soon} au total : c'est atteignable maintenant.", vars)
-        : soon >= need
-          ? t("Il manque {need} pour descendre au palier {tier} ({saving}). Tu as {now} récupérables tout de suite et {soon} sous 30 jours : c'est atteignable sous 30 jours, quand le seed sera payé.", vars)
-          : t('Il manque {need} pour descendre au palier {tier} ({saving}). Seuls {soon} sont récupérables à court terme — il faudrait tailler dans la bibliothèque active.', vars);
-    }
-  } else {
-    $('#tierHint').textContent = '';
-  }
   renderFullForecast();
 
   $('#stamp').textContent = t('calculé {time}', { time: new Date(S.calculé_à * 1000)
     .toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' }) });
 }
-
-const tient = tier => S.quota.used_gb < tier.gb;
 
 /** How long until the disk is full, at the observed rate.
  *  Two readings: the *net* rate (daily readings, when there are enough) and
@@ -219,7 +172,7 @@ function renderFullForecast() {
   if (trend.fiable && trend.par_jour > 0) {
     const left = free / trend.par_jour;
     parts.push(t('Au rythme net des {days} derniers jours (+{rate}/j), le disque sera plein dans {eta}.', {
-      days: trend.jours, rate: go(trend.par_jour),
+      days: nf.format(Math.max(1, Math.round(trend.jours))), rate: go(trend.par_jour),
       eta: left < 60 ? t('{n} jours', { n: Math.round(left) }) : t('{n} mois', { n: dec(left / 30) }) }));
   } else if (trend.fiable && trend.par_jour <= 0) {
     const rate = { rate: go(Math.abs(trend.par_jour)) };
@@ -294,8 +247,8 @@ function renderHealth() {
 
 /** Usage chart: one line, plan marks, nothing else.
  *  Drawn in real pixels (1:1 scale): a stretched viewBox distorts text and
- *  markers. The vertical scale starts below the lowest plan, not at zero —
- *  everything happens between the plans. */
+ *  markers, and the chart is redrawn whenever its box changes size. The
+ *  vertical scale starts a little below the lowest reading, not at zero. */
 let usageResizeBound = false;
 function renderUsage() {
   const samples = S.occupation.relevés;
@@ -314,8 +267,7 @@ function renderUsage() {
   const W = Math.max(box.clientWidth || 600, 320), H = 170;
   const padL = 10, padR = 74, padT = 14, padB = 24;
   const plan = Math.max(...samples.map(s => s.plan), 1);
-  const tiers = S.paliers.filter(tier => tier.gb * 1e9 <= plan * 1.02);
-  const lowest = Math.min(...samples.map(s => s.occupé), ...tiers.map(tier => tier.gb * 1e9));
+  const lowest = Math.min(...samples.map(s => s.occupé));
   const floor = Math.max(0, lowest - plan * 0.06);
   const top = plan * 1.02;
   const x = i => padL + (samples.length === 1 ? 0 : i / (samples.length - 1)) * (W - padL - padR);
@@ -324,17 +276,12 @@ function renderUsage() {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const f = n => n.toFixed(1);
 
-  // the current capacity is often a tier itself: one mark, one label
-  const isPlan = tier => Math.abs(tier.gb * 1e9 - plan) / plan < 0.01;
   const rule = (v, label) => {
     const ty = y(v);
     return `<line x1="${padL}" y1="${f(ty)}" x2="${W - padR}" y2="${f(ty)}" stroke="var(--border-strong)" stroke-width="1"/>`
       + `<text class="rule-label" x="${padL + 4}" y="${f(ty - 5)}" font-size="11" fill="var(--text-3)">${label}</text>`;
   };
-  const grid = tiers.map(tier => rule(tier.gb * 1e9,
-    `${esc(tier.nom)} · ${nf.format(tier.gb)} ${t('Go')}${isPlan(tier) ? ' ' + t('(palier actuel)') : ''}`)).join('');
-  const planLine = tiers.some(isPlan) ? ''
-    : rule(plan, `${t('capacité')} · ${nf.format(Math.round(plan / 1e9))} ${t('Go')}`);
+  const capacity = rule(plan, `${t('capacité')} · ${nf.format(Math.round(plan / 1e9))} ${t('Go')}`);
 
   const pts = samples.map((s, i) => `${f(x(i))},${f(y(s.occupé))}`).join(' ');
   const last = samples[samples.length - 1], lx = x(samples.length - 1), ly = y(last.occupé);
@@ -343,7 +290,7 @@ function renderUsage() {
   box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"
       style="display:block;width:100%;height:${H}px;overflow:visible" role="img"
       aria-label="${esc(t('Occupation disque par jour'))}">
-    ${grid}${planLine}
+    ${capacity}
     <polyline points="${pts}" fill="none" stroke="var(--series-1)" stroke-width="2"
       stroke-linejoin="round" stroke-linecap="round"/>
     <circle cx="${f(lx)}" cy="${f(ly)}" r="4" fill="var(--series-1)" stroke="var(--surface-1)" stroke-width="2"/>
@@ -352,14 +299,24 @@ function renderUsage() {
     <text x="${W - padR}" y="${H - 6}" font-size="11" fill="var(--text-3)" text-anchor="end">${esc(last.jour)}</text>
   </svg>`;
 
-  if (!usageResizeBound && typeof window !== 'undefined' && window.addEventListener) {
+  if (!usageResizeBound && typeof window !== 'undefined') {
+    // redraw at the real size whenever the box changes, not only on window
+    // resize: a layout shift after the first draw would otherwise scale the
+    // text down
     usageResizeBound = true;
-    let timer = null;
-    window.addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(renderUsage, 150); });
+    let timer = null, width = W;
+    const redraw = () => {
+      if (box.clientWidth && Math.abs(box.clientWidth - width) < 2) return;
+      width = box.clientWidth;
+      clearTimeout(timer);
+      timer = setTimeout(renderUsage, 100);
+    };
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(redraw).observe(box);
+    else if (window.addEventListener) window.addEventListener('resize', redraw);
   }
 
   const perDay = trend.par_jour;
-  const vars = { days: trend.jours, day: go(Math.abs(perDay)), month: go(Math.abs(perDay) * 30),
+  const vars = { days: nf.format(Math.max(1, Math.round(trend.jours))), day: go(Math.abs(perDay)), month: go(Math.abs(perDay) * 30),
     from: samples[0].jour, to: last.jour, n: samples.length };
   $('#usageNote').textContent = trend.fiable
     ? (perDay > 0

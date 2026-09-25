@@ -116,16 +116,6 @@ class Limits:
 
 
 @dataclass
-class Tier:
-    """An optional pricing tier: a capacity and what it costs."""
-
-    name: str
-    gb: float
-    price: float
-    currency: str = ""
-
-
-@dataclass
 class Schedule:
     """Automatic run. Off by default: nothing gets deleted behind your back."""
 
@@ -154,7 +144,6 @@ class Config:
     seeding: SeedingPolicy = field(default_factory=SeedingPolicy)
     protect: Protections = field(default_factory=Protections)
     limits: Limits = field(default_factory=Limits)
-    tiers: list[Tier] = field(default_factory=list)
     schedule: Schedule = field(default_factory=Schedule)
 
     def service(self, name: str) -> dict:
@@ -241,18 +230,6 @@ def load(path: Path | None = None) -> Config:
             max_gb_per_run=float(limits.get("max_gb_per_run", 400.0)),
         )
 
-    config.tiers = sorted(
-        (
-            Tier(
-                name=entry["name"],
-                gb=float(entry["gb"]),
-                price=float(entry.get("price", 0)),
-                currency=entry.get("currency", ""),
-            )
-            for entry in raw.get("tier", [])
-        ),
-        key=lambda tier: tier.gb,
-    )
     if schedule := raw.get("schedule"):
         config.schedule = Schedule(
             enabled=bool(schedule.get("enabled", False)),

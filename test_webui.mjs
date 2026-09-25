@@ -136,18 +136,9 @@ const total = segs.reduce((a, s) => a + pct(s), 0);
 check('les segments totalisent 100 %', Math.abs(total - 100) < 0.5, `${total.toFixed(1)} %`);
 check('légende présente pour chaque segment', $('#stackLegend').children.length === 5);
 check('histogramme : une colonne par mois', $('#growth').children.length === state.croissance.length);
-check('un bloc par palier', $('#tiers').children.length === state.paliers.length);
-if (state.paliers.length) {
-  check('paliers configurés : carte visible et conseil rédigé', $('#tiersCard').hidden === false
-    && $('#tierHint').textContent.length > 30, '« ' + $('#tierHint').textContent.slice(0, 64) + '… »');
-} else {
-  // no [[tier]]: a plain disk view, no pricing anywhere
-  check('sans palier : carte des paliers masquée, aucun repère sur la barre',
-    $('#tiersCard').hidden === true && $('#ticks').children.length === 0);
-  check('sans palier : ni prix ni palier dans le tableau de bord',
-    !/palier|tier\b|€|\$/i.test([...$('#dash').querySelectorAll('*')].filter((n) => !n.closest('[hidden]'))
-      .map((n) => n.childNodes).flatMap((c) => [...c]).filter((c) => c.nodeType === 3).map((c) => c.nodeValue).join(' ')));
-}
+// a plain disk view: no pricing, no hosting tiers, whatever the config holds
+check('tableau de bord : ni palier, ni prix, ni hébergement',
+  !/palier|tier\b|hébergement|hosting|€|\$/i.test($('#dash').textContent));
 check('prévision de saturation rédigée', $('#fullHint').textContent.length > 20, '« ' + $('#fullHint').textContent.slice(0, 70) + '… »');
 check('horodatage affiché', $('#stamp').textContent.startsWith(tr('calculé {time}').split(' ')[0]));
 const errBox = $('#errorBanner');
@@ -178,15 +169,9 @@ if (state.occupation.relevés.length < 2) {
   check('courbe : coordonnées valides dans le cadre', pts.length >= 2 && pts.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y) && x >= 0 && x <= VW && y >= 0 && y <= VH), `${pts.length} points dans ${VW}×${VH}`);
   check('courbe : échelle 1:1, pas d\'étirement', !svg.hasAttribute('preserveAspectRatio') || svg.getAttribute('preserveAspectRatio') !== 'none');
   const ruleLabels = [...svg.querySelectorAll('text.rule-label')];
-  const ys = ruleLabels.map((t) => t.getAttribute('y'));
-  check('courbe : repères de palier, aucun superposé', ruleLabels.length >= 1 && new Set(ys).size === ys.length, `${ruleLabels.length} repères`);
+  check('courbe : une seule ligne, la capacité du disque', ruleLabels.length === 1
+    && ruleLabels[0].textContent.startsWith(tr('capacité')), ruleLabels.map((l) => l.textContent).join(' | '));
   check('courbe : pente annoncée', $('#usageNote').textContent.length > 20, '« ' + $('#usageNote').textContent.slice(0, 58) + '… »');
-  const hostile = state.paliers.find((t) => /[<>&"]/.test(t.nom));
-  if (hostile) {
-    // real HTML parser: the hostile name must stay text, never become an element
-    check('courbe : nom de palier hostile rendu comme texte, pas comme balise',
-      ruleLabels.some((t) => t.textContent.includes('<b>')) && chart.querySelector('b') === null);
-  }
   if (dumpSvg) {
     const colors = { '--series-1': '#2a78d6', '--border-strong': '#c6c2b8', '--text-3': '#86847d', '--text-1': '#0b0b0b', '--surface-1': '#fcfcfb' };
     let out = svg.outerHTML.replace(/var\((--[a-z0-9-]+)\)/g, (_, v) => colors[v] || '#000');

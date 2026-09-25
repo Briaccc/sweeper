@@ -173,15 +173,3 @@ enabled = false
 interval_minutes = 360
 apply_rules = false
 apply_watchlist = true
-
-# --------------------------------------------------------------------------
-# Optional pricing tiers: capacities and what they cost. When set, the
-# dashboard shows which ones your usage fits in and what freeing space saves.
-# Left out, none of this appears.
-# --------------------------------------------------------------------------
-
-# [[tier]]
-# name = "S"
-# gb = 4000
-# price = 20
-# currency = "EUR"

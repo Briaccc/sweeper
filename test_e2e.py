@@ -342,12 +342,6 @@ enabled = false
 interval_minutes = 360
 apply_rules = false
 apply_watchlist = true
-
-[[tier]]
-name = "petit"
-gb = 1
-price = 10
-currency = "EUR"
 """, encoding="utf-8")
 
 
@@ -549,8 +543,6 @@ def ui_run(payload: dict, name: str, lang: str = "fr"):
 
 ok, last = ui_run(S0, "state-configured.json")
 check("interface configurée (jsdom, français) : rendu complet, aucune erreur", ok, last)
-ok, last = ui_run({**S0, "paliers": []}, "state-no-tiers.json")
-check("sans [[tier]] : vue disque simple, aucun palier ni prix affiché", ok, last)
 m4 = by_key["movie:4"]
 check("M4 : blocage « seed » porté par un code, pas par la phrase", "seed" in m4["blocker_codes"]
       and m4["blockers"][0].startswith("seed insuffisant"), m4["blocker_codes"])

@@ -446,8 +446,6 @@ def state_payload(state: State) -> dict[str, Any]:
     server or duplicating the serialisation by hand.
     """
     cfg = state.config
-    used_gb = state.quota.get("used_gb", 0)
-    plan_gb = state.quota.get("plan_gb", 0)
     inventory = state.inventory
     never = [c for c in inventory if not c.stats.last_viewed and c.kind != "season"]
     months = sorted(state.growth.items())[-12:]
@@ -458,17 +456,6 @@ def state_payload(state: State) -> dict[str, Any]:
         "composition": state.composition,
         "croissance": [{"mois": m, "octets": o} for m, o in months],
         "croissance_moyenne": sum(recent) / len(recent) if recent else 0,
-        "paliers": [
-            {
-                "nom": tier.name,
-                "gb": tier.gb,
-                "prix": tier.price,
-                "devise": tier.currency,
-                "actuel": abs(tier.gb - plan_gb) < 50,
-                "tient": used_gb < tier.gb,
-            }
-            for tier in cfg.tiers
-        ],
         "totaux": {
             "éléments": len([c for c in inventory if c.kind != "season"]),
             "jamais_vus": len(never),
