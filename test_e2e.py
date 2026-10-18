@@ -174,7 +174,8 @@ radarr.tags = [{"id": 1, "label": "keep"}]
 F: dict[str, Path] = {}          # notable paths, for the checks
 
 
-def movie_case(id, tmdb, title, year, size, added_days, ratio=2.0, seed_days=40, tags=(), crossseed=False):
+def movie_case(id, tmdb, title, year, size, added_days, ratio=2.0, seed_days=40, tags=(), crossseed=False,
+               arrived_days=None):
     rel = f"{title.replace(' ', '.')}.{year}"
     src = put(DL / rel / "film.mkv", size)
     folder = MOV / f"{title} ({year})"
@@ -185,7 +186,9 @@ def movie_case(id, tmdb, title, year, size, added_days, ratio=2.0, seed_days=40,
         F[f"m{id}_xs"] = link(src, XS / "xs" / rel / "film.mkv")
         qbit.add(f"h_m{id}x", rel, XS / "xs" / rel, XS / "xs", 0.3, seed_days, "tk.beta.net", "cross-seed")
     radarr.add_movie(id, tmdb, title, year, folder, lib, ago(added_days), tags)
-    return plex.movie(f"plex://movie/{tmdb}", title, year, lib, ago(added_days))
+    # added_days = request (Radarr), arrived_days = file on the server (Plex)
+    return plex.movie(f"plex://movie/{tmdb}", title, year, lib,
+                      ago(added_days if arrived_days is None else arrived_days))
 
 
 # M1 — never watched, 200 d, torrent + cross-seed, requested long ago      → TO DELETE
@@ -217,6 +220,8 @@ seerr.add_request(506, 106, "bob", ago(5))
 # M7 — watched yesterday: no rule applies                                  → neither candidate nor held
 movie_case(7, 1007, "Film Vu Hier", 2023, 4600, 200)
 plex.view_movie("plex://movie/1007", ago(1))
+# M8 — requested 200 d ago, file arrived 20 d ago, never watched           → too young: no rule applies
+movie_case(8, 1008, "Film Arrive Tard", 2026, 4700, 200, arrived_days=20)
 
 # S1 — never-watched series, season pack                                   → TO DELETE
 d = DL / "Serie.Morte.S01"
@@ -260,6 +265,14 @@ sh = plex.show("plex://show/2003", "Série Import Direct", 2016, ago(400))
 plex.episode(plex.season(sh, 1), 1, "plex://episode/2003-1", c1, ago(400))
 plex.episode(plex.season(sh, 2), 1, "plex://episode/2003-2", c2, ago(400))
 plex.view_episode("plex://show/2003", 1, ago(300)); plex.view_episode("plex://show/2003", 2, ago(3))
+
+# S4 — requested 400 d ago, its only season arrived 20 d ago, never watched → too young: no rule applies
+g1 = put(DL / "Serie.Tardive.S01E01.mkv", 2900)
+h1 = link(g1, TV / "Serie Tardive/Season 01/S01E01.mkv")
+qbit.add("h_s4", "Serie.Tardive.S01E01", g1, DL, 2.0, 40, "tracker.alpha.org", "tv-sonarr")
+sonarr.add_series(13, 2004, "Série Tardive", 2026, TV / "Serie Tardive", {1: [h1]}, ago(400))
+sh = plex.show("plex://show/2004", "Série Tardive", 2026, ago(20))
+plex.episode(plex.season(sh, 1), 1, "plex://episode/2004-1", h1, ago(20))
 
 # U1 — served by Plex, unknown to the *arrs, in a folder                   → outside *arr, adoptable
 F["u1"] = put(MOV / "Vieux Doc/vieux.mkv", 2000)
@@ -434,6 +447,10 @@ check("plan : S3 saison 1 retenue — copie unique", held_for("season:12:1", "co
 check("plan : U1 et U2 retenus — hors *arr",
       held_for("plex:movie:plex://movie/9001", "hors *arr") and held_for("plex:movie:plex://movie/9002", "hors *arr"))
 check("plan : M7 (vu hier) n'est ni candidat ni retenu", "movie:7" not in to_delete and "movie:7" not in held)
+check("plan : M8 (demandé il y a 200 j, arrivé il y a 20 j) n'est ni candidat ni retenu",
+      "movie:8" not in to_delete and "movie:8" not in held)
+check("plan : S4 (demandée il y a 400 j, arrivée il y a 20 j) n'est ni candidate ni retenue",
+      "series:13" not in to_delete and "series:13" not in held)
 check("plan : S2 saison 2 (regardée) n'est ni candidate ni retenue", "season:11:2" not in to_delete and "season:11:2" not in held)
 check("plan : octets annoncés = M1 + S1 + S2s1", plan.get("octets_libérés") == 5000 + 6100 + 3200, plan.get("octets_libérés"))
 
@@ -566,6 +583,9 @@ check("état : 4 services en bonne santé", all(x["ok"] for x in S0["santé"]["s
 ghosts = [m["title"] for m in S0["médias"] if m["unmanaged"] and m["title"] not in ("Vieux Doc", "Nu")]
 check("après suppression, aucun fantôme « hors *arr » (Plex n'a pas rescanné)", not ghosts, ghosts)
 by_key = {m["key"]: m for m in S0["médias"]}
+ages = {k: by_key.get(k, {}).get("age_days") for k in ("movie:8", "series:13", "season:13:1")}
+check("âge compté depuis l'arrivée (Plex), pas la demande : film, série et saison à 20 j",
+      ages == {"movie:8": 20, "series:13": 20, "season:13:1": 20}, ages)
 orph = {g["name"]: g for g in S0["orphelins"]}
 check("seed seul : O1 prêt, O2 dans 27 j", orph.get("Old.Release", {}).get("seed_ok") is True
       and orph.get("Young.Orphan", {}).get("unblocks_in_days") == 27, {k: (v["seed_ok"], v["unblocks_in_days"]) for k, v in orph.items()})

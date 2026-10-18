@@ -224,7 +224,8 @@ Content-Security-Policy stricte, `nosniff`, `X-Frame-Options: DENY` et
 
 La première règle qui correspond l'emporte : l'ordre compte — glissez les
 règles dans l'interface ou réordonnez-les dans le fichier. Chaque règle combine
-un critère de visionnage et un âge minimum en bibliothèque ; sans ce garde-fou,
+un critère de visionnage et un âge minimum en bibliothèque, compté depuis
+l'arrivée des fichiers (date d'ajout dans Plex) et non depuis la demande ; sans ce garde-fou,
 on supprimerait les nouveautés que personne n'a encore eu le temps de regarder.
 
 ```toml

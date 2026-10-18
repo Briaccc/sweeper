@@ -57,6 +57,7 @@ class PlexShow:
     year: int | None = None
     plex_id: int | None = None   # metadata_items.id = the ratingKey Seerr knows
     seasons: dict[int, WatchStats] = field(default_factory=dict)
+    season_added: dict[int, int] = field(default_factory=dict)  # season -> newest episode's added_at
     episode_paths: list[str] = field(default_factory=list)
     season_of_path: dict[str, int] = field(default_factory=dict)
 
@@ -173,6 +174,7 @@ def load_snapshot(db_path: Path, paths=None) -> PlexSnapshot:
                 shows[guid] = show
             # a show's added_at = date of its most recently imported episode
             show.added_at = max(show.added_at, row["added_at"] or 0)
+            show.season_added[season] = max(show.season_added.get(season, 0), row["added_at"] or 0)
             show.seasons.setdefault(season, season_views.get((guid, season), WatchStats()))
             show.episode_paths.append(file)
             show.season_of_path[file] = season

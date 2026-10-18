@@ -22,6 +22,19 @@ from .seerr import Seerr, SeerrMedia, index_by_external_id, index_by_rating_key
 DAY = 86400
 
 
+def _arrival(plex_added_at: int, arr_added: str) -> int:
+    """When the files reached the server: Plex's added date.
+
+    The *arr "added" date is when the item was requested. A film requested
+    before its release, or one no tracker had yet, can arrive months later:
+    counting from the request would make a three-week-old arrival look six
+    months old and hand it to a "never watched" rule. Plex keeps its added date
+    across upgrades, so a better copy does not reset the clock either. The *arr
+    date is only a fallback for an item Plex has no date for.
+    """
+    return plex_added_at or _arr_timestamp(arr_added)
+
+
 def _arr_timestamp(value: str) -> int:
     if not value:
         return 0
@@ -44,7 +57,7 @@ class Candidate:
     rule: str  # "" if no rule matches
     files: list[str]
     library_bytes: int
-    added_at: int
+    added_at: int    # arrival on the server (Plex), not the *arr request date
     stats: WatchStats
     season: int | None = None
     external_id: int | None = None   # tmdbId for a film, tvdbId for a series
@@ -202,7 +215,7 @@ class Sweeper:
                 if not os.path.isfile(movie.file_path):
                     self.unseen.append(movie.file_path)
                 continue
-            added_at = _arr_timestamp(movie.added)
+            added_at = _arrival(plex_movie.added_at, movie.added)
             rule = self._first_rule("movie", plex_movie.stats, added_at)
             candidate = Candidate(
                 kind="movie",
@@ -233,7 +246,9 @@ class Sweeper:
                 continue
             tags = [sonarr_tags.get(t, "") for t in item.tag_ids]
             seerr_media = seerr_shows.get(item.tvdb_id)
-            added_at = _arr_timestamp(item.added)
+            # a series is as old as its newest episode: a season that just
+            # landed makes it new again
+            added_at = _arrival(show.added_at, item.added)
 
             rule = self._first_rule("series", show.stats, added_at)
             files = self.episode_files(item.id)
@@ -461,7 +476,8 @@ class Sweeper:
         result: list[Candidate] = []
         for season, files in sorted(files_by_season.items()):
             stats = show.seasons.get(season, WatchStats())
-            rule = self._first_rule("season", stats, added_at)
+            season_added = show.season_added.get(season) or added_at
+            rule = self._first_rule("season", stats, season_added)
             candidate = Candidate(
                 kind="season",
                 key=f"season:{item.id}:{season}",
@@ -470,7 +486,7 @@ class Sweeper:
                 rule=rule.name if rule else "",
                 files=[f.path for f in files],
                 library_bytes=sum(f.size for f in files),
-                added_at=added_at,
+                added_at=season_added,
                 stats=stats,
                 season=season,
                 external_id=item.tvdb_id,

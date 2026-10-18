@@ -215,7 +215,8 @@ Content-Security-Policy, `nosniff`, `X-Frame-Options: DENY` and `no-store`.
 
 The first rule that matches wins, so order matters — drag rules in the
 interface or reorder them in the file. Each rule pairs a watch criterion with a
-minimum age in the library; without that guard you would delete new arrivals
+minimum age in the library, counted from when the files arrived (Plex's added
+date), not from the request; without that guard you would delete new arrivals
 nobody has had time to watch.
 
 ```toml
