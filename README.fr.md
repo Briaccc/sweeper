@@ -273,9 +273,20 @@ pas.
 | 1 | Radarr / Sonarr | suppression de la fiche et des fichiers (`deleteFiles=true`) |
 | 2 | qBittorrent | suppression des torrents concernés **avec leurs données** |
 | 3 | Seerr | `DELETE /request/{id}`, puis `DELETE /media/{id}` |
+| 4 | qBittorrent | les autres releases du titre encore dans `radarr` / `tv-sonarr` (d'après l'historique de l'*arr, lu avant) passent dans la catégorie `sweeper-seed` |
 
 `add_import_exclusion = false` laisse le titre re-téléchargeable si quelqu'un le
 redemande ; passez à `true` pour le bannir définitivement.
+
+L'étape 4 existe parce que Radarr et Sonarr effacent leur historique avec le
+média : restés dans leur catégorie, ces torrents reviennent dans Activity en
+« title mismatch, Manual Import required ». Ils continuent de seeder sur place :
+la catégorie est créée avec le même chemin d'enregistrement, et un torrent en
+gestion automatique passe d'abord en manuel, donc aucun fichier ne bouge.
+`[behaviour] seed_category = ""` les laisse tels quels. Pour les torrents
+laissés avant cette étape : dans **Seed seul**, sélectionnez-les puis **Ranger
+dans « sweeper-seed »** (ce que la file de l'*arr attend encore, comme un import
+manuel en suspens, reste en place).
 
 ## Ligne de commande
 

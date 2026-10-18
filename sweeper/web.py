@@ -93,6 +93,10 @@ class State:
         self.growth: dict[str, int] = {}
         self.composition: dict[str, int] = {}
         self.orphans: list = []
+        #: qBittorrent categories Radarr/Sonarr watch
+        self.watched_categories: set[str] = set()
+        #: torrents in those categories that neither app recognises anymore
+        self.unknown_to_arr: set[str] = set()
         self.trackers: list = []
         self.link_roots: list[Path] = []
         self.coverage_gap: dict = {"torrents": 0, "octets": 0, "exemples": []}
@@ -221,6 +225,15 @@ class State:
                 orphans = orphans_module.find(
                     link_map, all_torrents, library_roots, self.config.seeding
                 )
+                watched, unknown = set(), set()
+                try:   # only feeds a hint in the UI
+                    watched = radarr.watched_categories() | sonarr.watched_categories()
+                    exposed = {t.hash.lower() for g in orphans for t in g.torrents
+                               if t.category in watched}
+                    if exposed:
+                        unknown = exposed - radarr.known_hashes() - sonarr.known_hashes()
+                except Exception:  # noqa: BLE001
+                    pass
                 requesters = requests_module.collect(engine.seerr_inventory, inventory)
                 trackers = trackers_module.collect(
                     all_torrents, inventory, orphans, self.config.seeding
@@ -232,6 +245,7 @@ class State:
                            else unseen[0] if unseen else None)
                 self.missing_files = {"éléments": len(blind) + len(unseen), "exemple": example}
                 self.inventory, self.orphans = inventory, orphans
+                self.watched_categories, self.unknown_to_arr = watched, unknown
                 self.requesters, self.trackers = requesters, trackers
                 self.engine = engine
                 self.library_roots = library_roots
@@ -376,7 +390,7 @@ def candidate_json(item: Candidate, requesters: dict[str, list] | None = None) -
     }
 
 
-def orphan_json(group) -> dict[str, Any]:
+def orphan_json(group, watched: set[str] = frozenset(), unknown: set[str] = frozenset()) -> dict[str, Any]:
     return {
         "key": group.key,
         "name": group.name,
@@ -390,6 +404,10 @@ def orphan_json(group) -> dict[str, Any]:
         "seed_ok": group.seed_ok,
         "blocked": group.blocked,
         "blocked_code": code_of(group.blocked) if group.blocked else None,
+        # torrents still in a category Radarr/Sonarr watch; those the app no
+        # longer recognises show up in its Activity as "title mismatch"
+        "arr_categories": sorted({t.category for t in group.torrents if t.category in watched}),
+        "arr_unknown": sum(1 for t in group.torrents if t.hash.lower() in unknown),
     }
 
 
@@ -484,7 +502,9 @@ def state_payload(state: State) -> dict[str, Any]:
         "médias": [
             candidate_json(c, state.requesters.get("par_média")) for c in inventory
         ],
-        "orphelins": [orphan_json(g) for g in state.orphans],
+        "orphelins": [orphan_json(g, state.watched_categories, state.unknown_to_arr)
+                      for g in state.orphans],
+        "catégorie_seed": cfg.seed_category,
         "orphelins_totaux": {
             "lots": len(state.orphans),
             "octets": sum(g.bytes for g in state.orphans),
@@ -659,6 +679,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._api_protect()
             elif path == "/api/orphans/delete":
                 self._api_delete_orphans()
+            elif path == "/api/orphans/park":
+                self._api_park_orphans()
             elif path == "/api/rules/preview":
                 self._api_preview_rules()
             elif path == "/api/watchlist":
@@ -826,6 +848,21 @@ class Handler(BaseHTTPRequestHandler):
 
         job = state.jobs.submit(
             "seed-seul", t("{n} lot(s)", n=len(chosen)), len(chosen), work
+        )
+        self._send({"job": job.as_json()})
+
+    def _api_park_orphans(self) -> None:
+        """Move the selected seed-only torrents out of the *arr categories."""
+        keys = set(self._body().get("clés", []))
+        state = self.state
+        chosen = [g for g in state.orphans if g.key in keys]
+
+        def work(job) -> None:
+            _tick(job, state.engine.park_orphan_groups(chosen))
+            state.refresh()
+
+        job = state.jobs.submit(
+            "recatégorisation", t("{n} lot(s)", n=len(chosen)), 1, work
         )
         self._send({"job": job.as_json()})
 

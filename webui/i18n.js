@@ -384,7 +384,19 @@ const I18N_EN = {
   "Le disque est plein.": "The disk is full.",
   "Au rythme net des {days} derniers jours (+{rate}/j), le disque sera plein dans {eta}.": "At the net rate of the last {days} days (+{rate}/day), the disk will be full in {eta}.",
   "capacité": "capacity",
-  "sur {total} · ": "of {total} · "
+  "sur {total} · ": "of {total} · ",
+  "recatégorisation": "recategorisation",
+  "Sortir ces torrents de la vue de Radarr et Sonarr, sans déplacer de fichier": "Take these torrents out of Radarr and Sonarr's sight, without moving any file",
+  "{n} lot(s) dans {categories} que Radarr ou Sonarr ne reconnaissent plus : ils apparaissent dans Activity comme « title mismatch ».": "{n} batch(es) in {categories} that Radarr or Sonarr no longer recognise: they show up in Activity as “title mismatch”.",
+  "« title mismatch » dans {categories}": "“title mismatch” in {categories}",
+  "Les sélectionner": "Select them",
+  "catégorie {categories}": "category {categories}",
+  "Ranger dans « {category} »": "Move to “{category}”",
+  "{n} lot(s) passent dans la catégorie « {category} » de qBittorrent. Ils continuent de seeder et aucun fichier ne bouge ; Radarr et Sonarr cessent de les voir.": "{n} batch(es) move to the qBittorrent category “{category}”. They keep seeding and no file moves; Radarr and Sonarr stop seeing them.",
+  "Rangement…": "Moving…",
+  "aucun résultat": "no result",
+  "{n} torrent(s) rangé(s) dans « {category} ».": "{n} torrent(s) moved to “{category}”.",
+  "{n} laissé(s) en place : Radarr ou Sonarr les attend encore.": "{n} left in place: Radarr or Sonarr is still waiting for them."
 };
 
 const LANG = document.documentElement.getAttribute('lang') === 'en' ? 'en' : 'fr';

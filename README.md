@@ -260,9 +260,20 @@ A deleted season is also unmonitored in Sonarr so it does not come back.
 | 1 | Radarr / Sonarr | delete the entry and its files (`deleteFiles=true`) |
 | 2 | qBittorrent | delete the torrents involved **with their data** |
 | 3 | Seerr | `DELETE /request/{id}`, then `DELETE /media/{id}` |
+| 4 | qBittorrent | other releases of the title still in `radarr` / `tv-sonarr` (from the *arr's history, read beforehand) move to the `sweeper-seed` category |
 
 `add_import_exclusion = false` keeps the title downloadable if someone asks for
 it again; set it to `true` to ban it for good.
+
+Step 4 exists because Radarr and Sonarr erase their history with the media:
+left in their category, those torrents come back in Activity as "title
+mismatch, Manual Import required". They keep seeding where they are — the
+category is created with the same save path, and a torrent in automatic
+management is switched to manual first, so no file moves. Set
+`[behaviour] seed_category = ""` to leave them alone. Torrents left behind
+before this existed: in **Seed-only**, select them and choose **Move to
+"sweeper-seed"** (what the *arr's queue still expects, such as a pending
+manual import, is left in place).
 
 ## Command line
 

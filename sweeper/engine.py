@@ -765,9 +765,11 @@ class Sweeper:
                 "erreurs": [],
             }
             try:
+                grabbed = self._grabbed_hashes(candidate, record)
                 self._delete_from_arr(candidate, record)
                 self._delete_torrents(candidate, record)
                 self._clean_seerr(candidate, record)
+                self._park_leftovers(candidate, grabbed, record)
             except Exception as error:  # noqa: BLE001 - log it and carry on
                 record["erreurs"].append(f"{type(error).__name__}: {error}")
             results.append(record)
@@ -803,6 +805,109 @@ class Sweeper:
             "qBittorrent : {n} torrent(s) retiré(s) avec données ({names})",
             n=len(hashes), names=names,
         ))
+
+    def _grabbed_hashes(self, candidate: Candidate, record: dict) -> set[str]:
+        """Torrents the *arr downloaded for this item, read before it forgets them.
+
+        Only the torrents behind the library file are removed; other releases
+        of the same title (replaced by an upgrade, grabbed twice) stay in the
+        *arr's category. With the history gone, Radarr/Sonarr no longer know
+        they were imported and list them as "title mismatch" in Activity.
+        """
+        if not self.config.seed_category or not self.qbit.enabled:
+            return set()
+        try:
+            if candidate.kind == "movie":
+                return self.radarr.grabbed_hashes(candidate.arr_id)
+            season = candidate.season if candidate.kind == "season" else None
+            return self.sonarr.grabbed_hashes(candidate.arr_id, season)
+        except Exception as error:  # noqa: BLE001 - the deletion matters more
+            record["étapes"].append(t(
+                "historique illisible, torrents restants laissés en place ({error})",
+                error=f"{type(error).__name__}: {error}",
+            ))
+            return set()
+
+    def _park_leftovers(self, candidate: Candidate, grabbed: set[str], record: dict) -> None:
+        """Move what stays in qBittorrent out of the category the *arr watches."""
+        removed = {i.torrent.hash.lower() for i in candidate.impacts}
+        left = sorted(grabbed - removed)
+        if not left:
+            return
+        arr = self.radarr if candidate.kind == "movie" else self.sonarr
+        watched = arr.watched_categories()
+        doomed = set(candidate.files)
+        parked = []
+        for torrent in self.qbit.torrents(left):
+            if torrent.category not in watched:
+                continue
+            # a season pack still downloading may yet be imported for another season
+            if candidate.kind == "season" and torrent.progress < 1:
+                continue
+            if self._link_map is not None:
+                impact = self._link_map.assess(torrent, doomed)
+                if impact.also_seeds_kept or impact.destroys_kept_data:
+                    continue  # still serves something the library keeps
+            parked.append(torrent)
+        if not parked:
+            return
+        self.qbit.park(parked, self.config.seed_category)
+        record["torrents_rangés"] = [
+            {"nom": " ".join(x.name.split()), "hash": x.hash, "catégorie": x.category}
+            for x in parked
+        ]
+        record["étapes"].append(t(
+            "qBittorrent : {n} torrent(s) gardé(s) pour le seed, rangé(s) dans « {category} » ({names})",
+            n=len(parked), category=self.config.seed_category,
+            names=", ".join(x.name[:30] for x in parked[:3]),
+        ))
+
+    def park_orphan_groups(self, groups: list) -> dict:
+        """Move seed-only torrents out of the categories Radarr/Sonarr watch.
+
+        Leaves alone what the *arr's queue still ties to a media it manages (a
+        download waiting for a manual import, for instance) and unfinished
+        downloads. No file is touched: see QBittorrent.park. Not written to
+        history.jsonl, which logs deletions.
+        """
+        category = self.config.seed_category
+        if not category:
+            raise RuntimeError(t("aucune catégorie de seed configurée ([behaviour] seed_category)"))
+        watched = self.radarr.watched_categories() | self.sonarr.watched_categories()
+        queued = self.radarr.queued_hashes() | self.sonarr.queued_hashes()
+        chosen, skipped = [], []
+        for group in groups:
+            for torrent in group.torrents:
+                if torrent.category not in watched:
+                    continue
+                if torrent.hash.lower() in queued or torrent.progress < 1:
+                    skipped.append(torrent)
+                else:
+                    chosen.append(torrent)
+        record = {
+            "id": uuid.uuid4().hex[:12],
+            "horodatage": int(time.time()),
+            "type": "rangement-seed",
+            "titre": t("{n} torrent(s) rangé(s) dans « {category} »", n=len(chosen), category=category),
+            "octets_libérés": 0,
+            "torrents_rangés": [
+                {"nom": " ".join(x.name.split()), "hash": x.hash, "catégorie": x.category}
+                for x in chosen
+            ],
+            "laissés": [" ".join(x.name.split()) for x in skipped],
+            "étapes": [],
+            "erreurs": [],
+        }
+        try:
+            self.qbit.park(chosen, category)
+            if chosen:
+                record["étapes"].append(t(
+                    "qBittorrent : {n} torrent(s) rangé(s) dans « {category} », fichiers en place",
+                    n=len(chosen), category=category,
+                ))
+        except Exception as error:  # noqa: BLE001
+            record["erreurs"].append(f"{type(error).__name__}: {error}")
+        return record
 
     def _clean_seerr(self, candidate: Candidate, record: dict) -> None:
         if self.seerr is None:

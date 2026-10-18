@@ -168,6 +168,7 @@ class Plex:
 # --------------------------------------------------------------------------
 
 radarr, sonarr, seerr, qbit = FakeRadarr(MOV, VIEW), FakeSonarr(TV, VIEW), FakeSeerr(), FakeQbit(VIEW)
+qbit.default_save_path = VIEW.remote(DL)
 plex = Plex(PLEX_DB)
 radarr.tags = [{"id": 1, "label": "keep"}]
 F: dict[str, Path] = {}          # notable paths, for the checks
@@ -189,6 +190,13 @@ def movie_case(id, tmdb, title, year, size, added_days, ratio=2.0, seed_days=40,
 
 # M1 — never watched, 200 d, torrent + cross-seed, requested long ago      → TO DELETE
 i1 = movie_case(1, 1001, "Film Jamais Vu", 2020, 5000, 200, crossseed=True)
+# … plus an older release replaced by an upgrade: no hardlink in the library,
+# still seeding (ratio 0.2, 5 d), tied to the movie by Radarr's history only.
+# Automatic management: changing its category would move its data.
+F["m1_old"] = put(DL / "radarr/Film.Jamais.Vu.2020.OLD/film.mkv", 1800)
+qbit.add("h_m1old", "Film.Jamais.Vu.2020.OLD", DL / "radarr/Film.Jamais.Vu.2020.OLD", DL / "radarr",
+         0.2, 5, "tracker.alpha.org", auto_tmm=True)
+radarr.grab(1, "h_m1"); radarr.grab(1, "h_m1old")
 seerr.add_media(101, "movie", tmdb=1001, rating_key=i1)
 seerr.add_request(501, 101, "alice", ago(200))
 # M2 — watched 150 d ago, but paused by someone                            → held: in progress
@@ -216,6 +224,9 @@ e1, e2 = put(d / "e01.mkv", 3000), put(d / "e02.mkv", 3100)
 l1, l2 = link(e1, TV / "Serie Morte/Season 01/e01.mkv"), link(e2, TV / "Serie Morte/Season 01/e02.mkv")
 F.update(s1_dl=e1, s1_lib=l1)
 qbit.add("h_s1", "Serie.Morte.S01", d, DL, 2.0, 40, "tracker.alpha.org", "tv-sonarr")
+F["s1_old"] = put(DL / "Serie.Morte.S01.OLD/e01.mkv", 900)            # older release, still seeding
+qbit.add("h_s1old", "Serie.Morte.S01.OLD", DL / "Serie.Morte.S01.OLD", DL, 0.1, 2, "tracker.alpha.org", "tv-sonarr")
+sonarr.grab(10, 1, "h_s1"); sonarr.grab(10, 1, "h_s1old")
 sonarr.add_series(10, 2001, "Série Morte", 2019, TV / "Serie Morte", {1: [l1, l2]}, ago(200))
 sh = plex.show("plex://show/2001", "Série Morte", 2019, ago(200)); se = plex.season(sh, 1)
 plex.episode(se, 1, "plex://episode/2001-1", l1, ago(200)); plex.episode(se, 2, "plex://episode/2001-2", l2, ago(200))
@@ -228,6 +239,10 @@ b1 = link(a1, TV / "Serie Longue/Season 01/S01E01.mkv"); b2 = link(a2, TV / "Ser
 F.update(s2s1_dl=a1, s2s1_lib=b1, s2s2_dl=a2, s2s2_lib=b2)
 qbit.add("h_s2e1", "Serie.Longue.S01E01", a1, DL, 2.0, 400, "tracker.alpha.org", "tv-sonarr")
 qbit.add("h_s2e2", "Serie.Longue.S02E01", a2, DL, 2.0, 400, "tracker.alpha.org", "tv-sonarr")
+# a S01-S02 pack grabbed for season 1, whose season 2 file is the one the library keeps
+F["s2_pack"] = link(a2, DL / "Serie.Longue.S01-S02/S02E01.mkv")
+qbit.add("h_s2pack", "Serie.Longue.S01-S02", DL / "Serie.Longue.S01-S02", DL, 0.5, 10, "tracker.alpha.org", "tv-sonarr")
+sonarr.grab(11, 1, "h_s2e1"); sonarr.grab(11, 1, "h_s2pack")
 sonarr.add_series(11, 2002, "Série Longue", 2015, TV / "Serie Longue", {1: [b1], 2: [b2]}, ago(400))
 sh = plex.show("plex://show/2002", "Série Longue", 2015, ago(400))
 plex.episode(plex.season(sh, 1), 1, "plex://episode/2002-1", b1, ago(400))
@@ -261,6 +276,16 @@ qbit.add("h_o1", "Old.Release", DL / "Old.Release", DL, 1.5, 60, "tracker.gamma.
 # O2 — seed-only, 3 days of seeding                                        → in 27 d
 F["o2"] = put(DL / "Young.Orphan/y.mkv", 2500)
 qbit.add("h_o2", "Young.Orphan", DL / "Young.Orphan", DL, 0.0, 3, "tracker.gamma.org")
+# O4 — seed-only too, but Radarr's queue ties it to M3: waiting for a manual import
+F["o4"] = put(DL / "Film.Tag.Keep.2018.PROPER/f.mkv", 1200)
+qbit.add("h_o4", "Film.Tag.Keep.2018.PROPER", DL / "Film.Tag.Keep.2018.PROPER", DL, 0.0, 1, "tracker.gamma.org")
+radarr.queue.append({"movieId": 3, "downloadId": "H_O4", "title": "Film.Tag.Keep.2018.PROPER",
+                     "trackedDownloadState": "importBlocked"})
+radarr.grab(3, "h_o4")
+# O5 — release replaced by an upgrade of M2: in radarr, but the history still ties it to M2
+F["o5"] = put(DL / "Film.En.Cours.2019.OLD/f.mkv", 1100)
+qbit.add("h_o5", "Film.En.Cours.2019.OLD", DL / "Film.En.Cours.2019.OLD", DL, 1.5, 60, "tracker.gamma.org")
+radarr.grab(2, "h_o5")
 plex.commit()
 
 # E2E_NO_MAP: negative control — foreign paths WITHOUT translation, everything must break
@@ -443,6 +468,22 @@ check("S2 : saison 1 démonitorée, saison 2 toujours suivie", monitored == {1: 
 check("S2 : torrent de la saison 1 retiré, pas celui de la saison 2", "h_s2e1" not in qbit.torrents and "h_s2e2" in qbit.torrents)
 check("S2 : request de la saison 1 supprimée, celle de la saison 2 et la fiche gardées",
       602 not in seerr.requests and 603 in seerr.requests and 202 in seerr.media)
+old = qbit.torrents.get("h_m1old", {})
+check("M1 : l'ancienne release, gardée pour le seed, passe dans sweeper-seed", old.get("category") == "sweeper-seed", old.get("category"))
+check("… sans bouger : même save_path, même content_path, fichier en place, gestion automatique coupée",
+      old.get("save_path") == VIEW.remote(DL / "radarr") and old.get("content_path") == VIEW.remote(DL / "radarr/Film.Jamais.Vu.2020.OLD")
+      and F["m1_old"].exists() and old.get("auto_tmm") is False, {k: old.get(k) for k in ("save_path", "content_path", "auto_tmm")})
+check("… catégorie créée une fois, avec le chemin de « radarr »",
+      qbit.categories.get("sweeper-seed") == {"name": "sweeper-seed", "savePath": ""}
+      and len(qbit.called("POST", "/api/v2/torrents/createCategory")) == 1, qbit.categories.get("sweeper-seed"))
+check("S1 : l'ancienne release de la série passe aussi dans sweeper-seed",
+      qbit.torrents["h_s1old"]["category"] == "sweeper-seed" and F["s1_old"].exists())
+check("S2 : le pack qui sert encore la saison 2 reste dans tv-sonarr", qbit.torrents["h_s2pack"]["category"] == "tv-sonarr")
+check("O2 et O4, étrangers à ces suppressions, restent dans radarr",
+      qbit.torrents["h_o2"]["category"] == qbit.torrents["h_o4"]["category"] == "radarr")
+m1_record = next((h for h in history if h["titre"].startswith("Film Jamais Vu")), {})
+check("journal : M1 note le torrent rangé", [x["hash"] for x in m1_record.get("torrents_rangés", [])] == ["h_m1old"],
+      m1_record.get("torrents_rangés"))
 check("rien d'autre n'a bougé (M2–M7, S3, U1, U2, O1, O2)",
       all(F[k].exists() for k in ("m2_lib", "m3_lib", "m4_lib", "m5_lib", "m6_lib", "m7_lib", "s3_a", "s3_b", "u1", "u2", "o1", "o2")))
 check("journal : 3 entrées, sans erreur, avec identifiant externe et torrents",
@@ -529,6 +570,13 @@ orph = {g["name"]: g for g in S0["orphelins"]}
 check("seed seul : O1 prêt, O2 dans 27 j", orph.get("Old.Release", {}).get("seed_ok") is True
       and orph.get("Young.Orphan", {}).get("unblocks_in_days") == 27, {k: (v["seed_ok"], v["unblocks_in_days"]) for k, v in orph.items()})
 check("couverture des hardlinks complète", S0["couverture_hardlinks"]["torrents"] == 0, S0["couverture_hardlinks"])
+check("seed seul : catégorie *arr signalée (O2, O4, O5), pas pour ce qui est déjà rangé",
+      all(orph[n]["arr_categories"] == ["radarr"] for n in ("Young.Orphan", "Film.Tag.Keep.2018.PROPER", "Film.En.Cours.2019.OLD"))
+      and orph["Film.Jamais.Vu.2020.OLD"]["arr_categories"] == [] and S0["catégorie_seed"] == "sweeper-seed",
+      {k: v["arr_categories"] for k, v in orph.items()})
+check("… « title mismatch » seulement pour ce que Radarr ne connaît plus (O1, O2), pas O4 ni O5 que son historique lie à un film",
+      {k: v["arr_unknown"] for k, v in orph.items() if v["arr_unknown"]} == {"Old.Release": 1, "Young.Orphan": 1},
+      {k: v["arr_unknown"] for k, v in orph.items()})
 
 
 def ui_run(payload: dict, name: str, lang: str = "fr"):
@@ -581,6 +629,18 @@ j = job(s.post(f"{BASE}/api/orphans/delete", json={"clés": [o1]}))
 check("seed seul O1 retiré : fichier et torrent partis", j["faits"] == 1 and not F["o1"].exists() and "h_o1" not in qbit.torrents)
 j = job(s.post(f"{BASE}/api/orphans/delete", json={"clés": [o2]}))
 check("seed seul O2 sans forcer : refusé, fichier gardé", F["o2"].exists() and "h_o2" in qbit.torrents)
+o4 = orph["Film.Tag.Keep.2018.PROPER"]["key"]
+o2_before = dict(qbit.torrents["h_o2"])
+j = job(s.post(f"{BASE}/api/orphans/park", json={"clés": [o2, o4]}))
+res = (j["résultats"] or [{}])[0]
+check("ranger O2 + O4 : O2 passe dans sweeper-seed, O4 (attendu par Radarr) reste dans radarr",
+      qbit.torrents["h_o2"]["category"] == "sweeper-seed" and qbit.torrents["h_o4"]["category"] == "radarr"
+      and [x["hash"] for x in res.get("torrents_rangés", [])] == ["h_o2"] and res.get("laissés") == ["Film.Tag.Keep.2018.PROPER"], res)
+check("… aucun fichier ne bouge : chemins identiques",
+      F["o2"].exists() and all(qbit.torrents["h_o2"][k] == o2_before[k] for k in ("save_path", "content_path")))
+check("… l'état ne le signale plus, la catégorie n'est pas recréée",
+      next(g for g in st()["orphelins"] if g["key"] == o2)["arr_categories"] == []
+      and len(qbit.called("POST", "/api/v2/torrents/createCategory")) == 1)
 
 s.post(f"{BASE}/api/watchlist", json={"action": "add", "kind": "media", "clés": ["movie:7"]})
 w = s.post(f"{BASE}/api/watchlist", json={"action": "add", "kind": "orphan", "clés": [o2]}).json()

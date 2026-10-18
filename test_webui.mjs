@@ -268,5 +268,18 @@ if (unmanagedRow) {
   check('décocher referme la barre', $('#actionbar').hidden === true);
 }
 
+// --- seed-only torrents left in an *arr category: pointed at, then moved -----------
+const misfiled = state.orphelins.filter((g) => g.arr_unknown > 0);
+check('lots que Radarr/Sonarr ne reconnaissent plus signalés, sinon note cachée',
+  $('#orphanMisfiled').hidden === !(misfiled.length && state.catégorie_seed), `${misfiled.length} lot(s)`);
+if (misfiled.length && state.catégorie_seed) {
+  $$('nav button').find((b) => b.dataset.tab === 'library').click();
+  $('#viewOrphans').click();
+  $('#orphanMisfiled button').click();
+  check('« Les sélectionner » coche ces lots et propose de les ranger',
+    $('#orphanbar').hidden === false && $('#oparkBtn').hidden === false
+    && $('#oparkBtn').textContent.includes(state.catégorie_seed), $('#oparkBtn').textContent);
+}
+
 console.log(failures ? `\n${failures} échec(s)` : '\nTout passe.');
 process.exit(failures ? 1 : 0);

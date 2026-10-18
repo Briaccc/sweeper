@@ -92,6 +92,11 @@ add_import_exclusion = false
 # true = also delete the Seerr media record, not just the request. That is what
 # makes the title requestable again instead of staying "Available".
 delete_seerr_media = true
+# Torrents that outlive their media (seeding not finished, older releases of
+# the same title) move to this qBittorrent category, created with the same save
+# path: no file moves. Left in "radarr" or "tv-sonarr", they come back in the
+# Activity queue as "title mismatch, Manual Import required". "" = leave them.
+seed_category = "sweeper-seed"
 
 [web]
 port = 29320

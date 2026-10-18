@@ -140,6 +140,9 @@ class Config:
     state_dir: Path = HOME / ".local/state/sweeper"
     add_import_exclusion: bool = False
     delete_seerr_media: bool = True
+    #: qBittorrent category for torrents kept only to seed, out of sight of
+    #: Radarr/Sonarr. Empty = leave them where they are.
+    seed_category: str = "sweeper-seed"
     rules: list[Rule] = field(default_factory=list)
     seeding: SeedingPolicy = field(default_factory=SeedingPolicy)
     protect: Protections = field(default_factory=Protections)
@@ -206,6 +209,7 @@ def load(path: Path | None = None) -> Config:
         state_dir=_expand(os.environ.get("SWEEPER_STATE_DIR") or paths.get("state_dir", "~/.local/state/sweeper")),
         add_import_exclusion=bool(behaviour.get("add_import_exclusion", False)),
         delete_seerr_media=bool(behaviour.get("delete_seerr_media", True)),
+        seed_category=str(behaviour.get("seed_category", "sweeper-seed")).strip(),
     )
 
     if seeding := raw.get("seeding"):

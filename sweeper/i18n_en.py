@@ -233,4 +233,16 @@ EN: dict[str, str] = {
     "Depuis une autre machine, redirige le port par SSH :": "From another machine, forward the port over SSH:",
     "Jeton mémorisé en cookie après la 1re ouverture, stocké dans": "The token is kept in a cookie after the first visit; it is stored in",
     "{path}. Ctrl-C pour arrêter.": "{path}. Ctrl-C to stop.",
+    # --- seed category: torrents kept only to seed, out of the *arr's sight
+    "qBittorrent : chemin changé après le changement de catégorie ({names})":
+    "qBittorrent: path changed after the category change ({names})",
+    "historique illisible, torrents restants laissés en place ({error})":
+    "history unreadable, remaining torrents left where they are ({error})",
+    "qBittorrent : {n} torrent(s) gardé(s) pour le seed, rangé(s) dans « {category} » ({names})":
+    "qBittorrent: {n} torrent(s) kept for seeding, moved to “{category}” ({names})",
+    "aucune catégorie de seed configurée ([behaviour] seed_category)":
+    "no seed category configured ([behaviour] seed_category)",
+    "{n} torrent(s) rangé(s) dans « {category} »": "{n} torrent(s) moved to “{category}”",
+    "qBittorrent : {n} torrent(s) rangé(s) dans « {category} », fichiers en place":
+    "qBittorrent: {n} torrent(s) moved to “{category}”, files left in place",
 }

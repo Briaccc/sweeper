@@ -142,8 +142,15 @@ class FakeRadarr(Fake):
         self.movies: dict[int, dict] = {}
         self.tags: list[dict] = []
         self.catalogue: dict[int, dict] = {}   # tmdbId -> record returned by lookup
+        self.history: dict[int, list[dict]] = {}   # movieId -> records
+        self.queue: list[dict] = []                # tracked downloads tied to a movie
         self.next_id = 100
         super().__init__()
+
+    def grab(self, movie_id: int, torrent_hash: str) -> None:
+        """A grab in the history, as Radarr records it (uppercase downloadId)."""
+        self.history.setdefault(movie_id, []).append(
+            {"eventType": "grabbed", "movieId": movie_id, "downloadId": torrent_hash.upper()})
 
     def add_movie(self, id, tmdb, title, year, folder: Path, file: Path, added: float, tags=()):
         self.movies[id] = {
@@ -166,7 +173,20 @@ class FakeRadarr(Fake):
                 return 404, {"message": "introuvable"}, None
             if query.get("deleteFiles") == "true":
                 _remove(Path(self.v.local(movie["path"])))   # the real Radarr deletes the folder
+            self.history.pop(movie["id"], None)              # and the history goes with the movie
             return 200, None, None
+        if method == "GET" and p == "history/since":
+            event = {"1": "grabbed"}.get(query.get("eventType"), "?")
+            return 200, [r for records in self.history.values() for r in records if r["eventType"] == event], None
+        if method == "GET" and p == "history/movie":
+            return 200, self.history.get(int(query["movieId"]), []), None
+        if method == "GET" and p == "downloadclient":
+            return 200, [{"name": "qBittorrent", "implementation": "QBittorrent", "enable": True,
+                          "fields": [{"name": "movieCategory", "value": "radarr"},
+                                     {"name": "movieImportedCategory"}]}], None
+        if method == "GET" and p == "queue":
+            # without includeUnknownMovieItems, only downloads tied to a movie
+            return 200, {"page": 1, "totalRecords": len(self.queue), "records": self.queue}, None
         if method == "GET" and p == "tag":
             return 200, self.tags, None
         if method == "POST" and p == "tag":
@@ -220,9 +240,14 @@ class FakeSonarr(Fake):
         self.files: dict[int, dict] = {}
         self.tags: list[dict] = []
         self.catalogue: dict[int, dict] = {}   # tvdbId -> record
+        self.history: list[dict] = []
         self.next_id = 100
         self.next_file = 1000
         super().__init__()
+
+    def grab(self, series_id: int, season: int, torrent_hash: str) -> None:
+        self.history.append({"eventType": "grabbed", "seriesId": series_id,
+                             "seasonNumber": season, "downloadId": torrent_hash.upper()})
 
     def add_series(self, id, tvdb, title, year, folder: Path, seasons: dict[int, list[Path]], added: float):
         self.series[id] = {
@@ -252,6 +277,18 @@ class FakeSonarr(Fake):
         if method == "GET" and p == "episodefile":
             sid = int(query["seriesId"])
             return 200, [f for f in self.files.values() if f["seriesId"] == sid], None
+        if method == "GET" and p == "history/since":
+            event = {"1": "grabbed"}.get(query.get("eventType"), "?")
+            return 200, [r for r in self.history if r["eventType"] == event], None
+        if method == "GET" and p == "history/series":
+            sid, season = int(query["seriesId"]), query.get("seasonNumber")
+            return 200, [r for r in self.history if r["seriesId"] == sid
+                         and (season is None or r["seasonNumber"] == int(season))], None
+        if method == "GET" and p == "downloadclient":
+            return 200, [{"name": "qBittorrent", "implementation": "QBittorrent", "enable": True,
+                          "fields": [{"name": "tvCategory", "value": "tv-sonarr"}]}], None
+        if method == "GET" and p == "queue":
+            return 200, {"page": 1, "totalRecords": 0, "records": []}, None
         if method == "DELETE" and p == "episodefile/bulk":
             for file_id in body["episodeFileIds"]:
                 f = self.files.pop(file_id)
@@ -272,6 +309,7 @@ class FakeSonarr(Fake):
                     self.files.pop(fid)
                 if query.get("deleteFiles") == "true":
                     _remove(Path(self.v.local(series["path"])))
+                self.history = [r for r in self.history if r["seriesId"] != sid]
                 return 200, None, None
         if method == "GET" and p == "tag":
             return 200, self.tags, None
@@ -369,14 +407,35 @@ class FakeQbit(Fake):
     def __init__(self, view: View | None = None) -> None:
         self.v = view or View()
         self.torrents: dict[str, dict] = {}
+        self.categories = {name: {"name": name, "savePath": ""} for name in ("radarr", "tv-sonarr", "cross-seed")}
+        #: where a category without a save path keeps its data (remote view)
+        self.default_save_path = ""
         super().__init__()
 
-    def add(self, hash, name, content: Path, save: Path, ratio, seed_days, tracker, category="radarr"):
+    def add(self, hash, name, content: Path, save: Path, ratio, seed_days, tracker, category="radarr", auto_tmm=False):
         size = sum(f.stat().st_size for f in content.rglob("*") if f.is_file()) if content.is_dir() else content.stat().st_size
         self.torrents[hash] = {"hash": hash, "name": name, "category": category, "state": "stalledUP",
                                "size": size, "ratio": ratio, "seeding_time": int(seed_days * 86400),
                                "content_path": self.v.remote(content), "save_path": self.v.remote(save),
-                               "tracker": f"https://{tracker}/announce"}
+                               "tracker": f"https://{tracker}/announce", "auto_tmm": auto_tmm, "progress": 1.0}
+
+    def _category_path(self, name: str) -> str:
+        explicit = self.categories[name]["savePath"]
+        return explicit or f"{self.default_save_path.rstrip('/')}/{name}"
+
+    def _set_category(self, torrent: dict, name: str) -> None:
+        """Like the real one: in automatic management the data follows the category."""
+        torrent["category"] = name
+        if not torrent["auto_tmm"]:
+            return
+        target = self._category_path(name)
+        if target == torrent["save_path"]:
+            return
+        old = Path(self.v.local(torrent["content_path"]))
+        new = Path(self.v.local(target)) / old.relative_to(self.v.local(torrent["save_path"]))
+        new.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(old), str(new))
+        torrent["save_path"], torrent["content_path"] = target, self.v.remote(new)
 
     def route(self, method, path, query, body, headers):
         p = path.removeprefix("/api/v2/")
@@ -389,7 +448,28 @@ class FakeQbit(Fake):
         if method == "GET" and p == "app/version":
             return 200, "v5.0.0-fake", None
         if method == "GET" and p == "torrents/info":
-            return 200, list(self.torrents.values()), None
+            wanted = set(query["hashes"].lower().split("|")) if query.get("hashes") else None
+            return 200, [t for h, t in self.torrents.items() if wanted is None or h.lower() in wanted], None
+        if method == "GET" and p == "torrents/categories":
+            return 200, self.categories, None
+        if method == "POST" and p == "torrents/createCategory":
+            name = body["category"]
+            if name in self.categories:
+                return 409, "Category already exists", None
+            self.categories[name] = {"name": name, "savePath": body.get("savePath", "")}
+            return 200, None, None
+        if method == "POST" and p == "torrents/setCategory":
+            if body["category"] not in self.categories:
+                return 409, "Incorrect category name", None
+            for h in body["hashes"].split("|"):
+                if h in self.torrents:
+                    self._set_category(self.torrents[h], body["category"])
+            return 200, None, None
+        if method == "POST" and p == "torrents/setAutoManagement":
+            for h in body["hashes"].split("|"):
+                if h in self.torrents:
+                    self.torrents[h]["auto_tmm"] = body["enable"] == "true"
+            return 200, None, None
         if method == "POST" and p == "torrents/delete":
             for h in body["hashes"].split("|"):
                 t = self.torrents.pop(h, None)

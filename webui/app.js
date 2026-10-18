@@ -773,6 +773,21 @@ function renderOrphans() {
   const totals = S.orphelins_totaux;
   $('#orphanKpis').textContent = t("{total} sur le disque qu'aucun Radarr ni Sonarr ne connaît — {ready} dont le seed est payé, {waiting} en attente. Releases remplacées, ou médias supprimés dont le torrent n'avait pas fini de seeder.",
     { total: go(totals.octets), ready: go(totals.prêts), waiting: go(totals.en_attente) });
+  // left in an *arr category with its history gone (media deleted), a
+  // seed-only torrent shows up in Activity as "title mismatch": point at
+  // those, the action bar moves them
+  const misfiled = S.orphelins.filter(g => g.arr_unknown > 0);
+  const note = $('#orphanMisfiled');
+  note.hidden = !misfiled.length || !S.catégorie_seed;
+  if (!note.hidden) {
+    note.replaceChildren(
+      t('{n} lot(s) dans {categories} que Radarr ou Sonarr ne reconnaissent plus : ils apparaissent dans Activity comme « title mismatch ».',
+        { n: misfiled.length, categories: [...new Set(misfiled.flatMap(g => g.arr_categories))].join(', ') }) + ' ',
+      el('button', { class: 'link', text: t('Les sélectionner'), onclick: () => {
+        misfiled.forEach(g => oSelection.add(g.key));
+        renderOrphans();
+      } }));
+  }
 
   const rows = visibleOrphans();
   $('#noOrphans').hidden = rows.length > 0;
@@ -789,7 +804,9 @@ function renderOrphans() {
       })),
       el('td', { class: 't' }, group.name.slice(0, 64),
         el('div', { class: 'meta' },
-          t('{n} fichier(s) · {trackers}', { n: group.files, trackers: group.trackers.join(', ') || t('tracker inconnu') })),
+          t('{n} fichier(s) · {trackers}', { n: group.files, trackers: group.trackers.join(', ') || t('tracker inconnu') })
+          + (group.arr_unknown > 0 ? ' · ' + t('« title mismatch » dans {categories}', { categories: group.arr_categories.join(', ') })
+            : group.arr_categories?.length ? ' · ' + t('catégorie {categories}', { categories: group.arr_categories.join(', ') }) : '')),
         group.blocked ? el('div', { class: 'why', text: group.blocked }) : null),
       el('td', { class: 'r num', text: go(group.bytes) }),
       el('td', { class: 'r hide-s num', text: group.torrents }),
@@ -807,6 +824,40 @@ function renderOrphanSelection() {
   $('#orphanbar').hidden = chosen.length === 0 || $('#library').hidden || libraryView !== 'orphans';
   $('#oselN').textContent = chosen.length;
   $('#oselGb').textContent = go(chosen.reduce((a, g) => a + g.bytes, 0));
+  const park = $('#oparkBtn');
+  park.hidden = !S.catégorie_seed || !chosen.some(g => g.arr_categories?.length);
+  if (!park.disabled) park.textContent = t('Ranger dans « {category} »', { category: S.catégorie_seed });
+}
+
+async function parkOrphans() {
+  const chosen = S.orphelins.filter(g => oSelection.has(g.key) && g.arr_categories?.length);
+  if (!chosen.length) return;
+  const category = S.catégorie_seed;
+  if (!confirm(t("{n} lot(s) passent dans la catégorie « {category} » de qBittorrent. Ils continuent de seeder et aucun fichier ne bouge ; Radarr et Sonarr cessent de les voir.",
+    { n: chosen.length, category }))) return;
+  const button = $('#oparkBtn');
+  button.disabled = true;
+  button.textContent = t('Rangement…');
+  try {
+    const started = await api('/api/orphans/park', {
+      method: 'POST', body: JSON.stringify({ clés: chosen.map(g => g.key) }),
+    });
+    const job = await followJob(started.job);
+    const result = job.résultats?.[0];
+    if (job.erreur || !result) throw new Error(job.erreur || t('aucun résultat'));
+    if (result.erreurs.length) throw new Error(result.erreurs[0]);
+    toast(t('{n} torrent(s) rangé(s) dans « {category} ».', { n: result.torrents_rangés.length, category })
+      + (result.laissés.length
+        ? ' ' + t('{n} laissé(s) en place : Radarr ou Sonarr les attend encore.', { n: result.laissés.length })
+        : ''));
+    oSelection.clear();
+    await load();
+  } catch (error) {
+    toast(t('Échec : ') + error.message, true);
+  } finally {
+    button.disabled = false;
+    renderOrphanSelection();
+  }
 }
 
 async function deleteOrphans() {
@@ -1573,6 +1624,7 @@ $('#allOrphans').onchange = e => {
   renderOrphans();
 };
 $('#odeleteBtn').onclick = deleteOrphans;
+$('#oparkBtn').onclick = parkOrphans;
 $('#deleteBtn').onclick = openConfirm;
 $('#queueBtn').onclick = () => queueUp([...selection], 'media');
 $('#adoptBtn').onclick = openAdopt;

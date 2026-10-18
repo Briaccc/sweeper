@@ -17,6 +17,8 @@ class ArrClient:
     #: translates paths as the application sees them into paths as sweeper sees them
     paths = PathMap()
     enabled = True
+    #: download-client field naming the qBittorrent category the app watches
+    category_field = ""
 
     def __init__(self, access: ServiceAccess, timeout: int = 60) -> None:
         self.base_url = access.base_url.rstrip("/")
@@ -86,6 +88,39 @@ class ArrClient:
         """Root folders, as sweeper sees them."""
         return [self.paths.to_local(f["path"]) for f in self.get("rootfolder") if f.get("path")]
 
+    def watched_categories(self) -> set[str]:
+        """qBittorrent categories the app watches: every torrent found there
+        shows up in its Activity queue, recognised or not."""
+        return {
+            field["value"]
+            for client in self.get("downloadclient")
+            if client.get("enable", True)
+            for field in client.get("fields", [])
+            if field.get("name") == self.category_field and field.get("value")
+        }
+
+    def queued_hashes(self) -> set[str]:
+        """Torrents the queue ties to a media it manages (download, pending import…)."""
+        page = self.get("queue", page=1, pageSize=1000)
+        return {
+            record["downloadId"].lower()
+            for record in page.get("records", [])
+            if record.get("downloadId")
+        }
+
+    def known_hashes(self) -> set[str]:
+        """Every torrent the history ties to a media still there. Those of a
+        deleted media are missing — their history went with it — and the app
+        lists them in Activity as "title mismatch"."""
+        records: list[dict] = []
+        for event in (1, 3):   # grabbed, downloadFolderImported: same values in both apps
+            records += self.get("history/since", date="1970-01-01T00:00:00Z", eventType=event)
+        return self._download_ids(records)
+
+    @staticmethod
+    def _download_ids(history: list[dict]) -> set[str]:
+        return {r["downloadId"].lower() for r in history if r.get("downloadId")}
+
     def ensure_tag(self, label: str) -> int:
         for tag_id, existing in self.tags().items():
             if existing.lower() == label.lower():
@@ -134,6 +169,13 @@ class Series:
 
 
 class Radarr(ArrClient):
+    category_field = "movieCategory"
+
+    def grabbed_hashes(self, movie_id: int) -> set[str]:
+        """Every torrent the history ties to the movie. Radarr erases that
+        history along with the movie: read it before deleting."""
+        return self._download_ids(self.get("history/movie", movieId=movie_id))
+
     def movies(self) -> list[Movie]:
         result = []
         for entry in self.get("movie"):
@@ -218,6 +260,14 @@ class Radarr(ArrClient):
 
 
 class Sonarr(ArrClient):
+    category_field = "tvCategory"
+
+    def grabbed_hashes(self, series_id: int, season: int | None = None) -> set[str]:
+        params = {"seriesId": series_id}
+        if season is not None:
+            params["seasonNumber"] = season
+        return self._download_ids(self.get("history/series", **params))
+
     def series(self) -> list[Series]:
         result = []
         for entry in self.get("series"):

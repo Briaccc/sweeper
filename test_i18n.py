@@ -238,7 +238,7 @@ for text, where in sorted(js_keys.items(), key=lambda kv: kv[1]):
         check(placeholders(text) == placeholders(JS_EN[text]),
               f"placeholders differ for {text!r}")
 # job kinds arrive from the server as data and go through t(job.type)
-JOB_KINDS = ("suppression", "seed-seul", "adoption", "rangement", "planifié")
+JOB_KINDS = ("suppression", "seed-seul", "adoption", "rangement", "planifié", "recatégorisation")
 for text in sorted(set(JS_EN) - set(js_keys)):
     if text in JOB_KINDS:
         continue

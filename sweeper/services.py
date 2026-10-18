@@ -56,6 +56,18 @@ class _Disabled:
     def root_folders(self) -> list[str]:
         return []
 
+    def watched_categories(self) -> set[str]:
+        return set()
+
+    def queued_hashes(self) -> set[str]:
+        return set()
+
+    def known_hashes(self) -> set[str]:
+        return set()
+
+    def grabbed_hashes(self, *args) -> set[str]:
+        return set()
+
     def _refuse(self, *args, **kwargs):
         raise RuntimeError(t("{service} est désactivé dans la configuration", service=self.name))
 
@@ -97,8 +109,15 @@ class NullQbit:
     def version(self) -> str:
         return t("désactivé")
 
-    def torrents(self) -> list:
+    def torrents(self, hashes=None) -> list:
         return []
+
+    def categories(self) -> dict:
+        return {}
+
+    def park(self, torrents: list, category: str) -> None:
+        if torrents:
+            raise RuntimeError(t("{service} est désactivé dans la configuration", service="qBittorrent"))
 
     def delete(self, hashes: list[str], delete_files: bool = True) -> None:
         if hashes:

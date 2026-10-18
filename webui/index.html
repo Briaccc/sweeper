@@ -95,6 +95,7 @@
 
   <div id="orphans" hidden>
     <p class="sub" id="orphanKpis"></p>
+    <p class="sub" id="orphanMisfiled" hidden></p>
     <div class="chips" style="margin-bottom:12px">
       <button class="chip" data-o="ready" aria-pressed="false">Seed payé</button>
       <button class="chip" data-o="soon" aria-pressed="false">Sous 30 jours</button>
@@ -244,6 +245,7 @@
 <div class="actionbar" id="orphanbar" hidden>
   <span class="n"><b id="oselN">0</b> lot(s) · <b id="oselGb">0 Go</b> libérables</span>
   <button class="act" id="oqueueBtn" title="Retirer automatiquement dès que le seed sera payé">Mettre en file</button>
+  <button class="act" id="oparkBtn" title="Sortir ces torrents de la vue de Radarr et Sonarr, sans déplacer de fichier" hidden></button>
   <button class="act danger" id="odeleteBtn">Retirer les torrents…</button>
 </div>
 

@@ -25,6 +25,9 @@ class Torrent:
     content_path: str
     save_path: str
     tracker: str
+    #: automatic torrent management: qBittorrent moves the data when the category changes
+    auto_tmm: bool = False
+    progress: float = 1.0
 
     @property
     def seeding_days(self) -> float:
@@ -77,7 +80,10 @@ class QBittorrent:
         response.raise_for_status()
         return response.text.strip()
 
-    def torrents(self) -> list[Torrent]:
+    def torrents(self, hashes: list[str] | None = None) -> list[Torrent]:
+        if hashes is not None and not hashes:
+            return []
+        params = {"hashes": "|".join(hashes)} if hashes else {}
         return [
             Torrent(
                 hash=entry["hash"],
@@ -90,9 +96,61 @@ class QBittorrent:
                 content_path=self.paths.to_local(entry.get("content_path", "")),
                 save_path=self.paths.to_local(entry.get("save_path", "")),
                 tracker=entry.get("tracker", ""),
+                auto_tmm=bool(entry.get("auto_tmm", False)),
+                progress=float(entry.get("progress", 1.0)),
             )
-            for entry in self._get("torrents/info")
+            for entry in self._get("torrents/info", **params)
         ]
+
+    def _post(self, path: str, **data: str) -> None:
+        self.login()
+        response = self.session.post(
+            f"{self.base_url}/api/v2/{path}", data=data, timeout=self.timeout
+        )
+        response.raise_for_status()
+
+    def categories(self) -> dict[str, str]:
+        """Category name -> its save path as configured ("" = implicit)."""
+        return {
+            name: entry.get("savePath", "")
+            for name, entry in (self._get("torrents/categories") or {}).items()
+        }
+
+    def park(self, torrents: list[Torrent], category: str) -> None:
+        """Move torrents into `category` without moving a single byte.
+
+        A torrent in automatic management follows its category's folder: the
+        change would make qBittorrent move its data. Switching it to manual
+        management first pins it where it is. The new category gets the save
+        path of the one the torrents come from, so a later automatic run finds
+        it consistent.
+        """
+        if not torrents:
+            return
+        hashes = [x.hash for x in torrents]
+        existing = self.categories()
+        if category not in existing:
+            sources = {existing.get(x.category, "") for x in torrents}
+            self._post(
+                "torrents/createCategory",
+                category=category,
+                savePath=sources.pop() if len(sources) == 1 else "",
+            )
+        managed = [x.hash for x in torrents if x.auto_tmm]
+        if managed:
+            self._post("torrents/setAutoManagement", hashes="|".join(managed), enable="false")
+        self._post("torrents/setCategory", hashes="|".join(hashes), category=category)
+        after = {x.hash: x for x in self.torrents(hashes)}
+        moved = [
+            x.name for x in torrents
+            if x.hash in after
+            and (after[x.hash].save_path, after[x.hash].content_path) != (x.save_path, x.content_path)
+        ]
+        if moved:
+            raise RuntimeError(t(
+                "qBittorrent : chemin changé après le changement de catégorie ({names})",
+                names=", ".join(n[:30] for n in moved[:3]),
+            ))
 
     def delete(self, hashes: list[str], delete_files: bool = True) -> None:
         if not hashes:
