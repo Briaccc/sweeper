@@ -795,6 +795,18 @@ class Sweeper:
         return results
 
     def _delete_from_arr(self, candidate: Candidate, record: dict) -> None:
+        arr = self.radarr if candidate.kind == "movie" else self.sonarr
+        if not self.config.skip_recycle_bin:
+            self._arr_delete(candidate, record)
+            return
+        with arr.recycle_bin_bypassed() as folder:
+            self._arr_delete(candidate, record)
+        if folder:
+            record["étapes"].append(t(
+                "corbeille ({folder}) contournée : fichiers supprimés pour de bon", folder=folder,
+            ))
+
+    def _arr_delete(self, candidate: Candidate, record: dict) -> None:
         exclusion = self.config.add_import_exclusion
         if candidate.kind == "movie":
             self.radarr.delete_movie(candidate.arr_id, add_exclusion=exclusion)

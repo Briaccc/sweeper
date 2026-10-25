@@ -279,6 +279,13 @@ pas.
 `add_import_exclusion = false` laisse le titre re-téléchargeable si quelqu'un le
 redemande ; passez à `true` pour le bannir définitivement.
 
+L'étape 1 contourne la corbeille de Radarr/Sonarr (Settings › Media
+Management) : comme l'étape 2 retire les torrents, la copie qu'elle garderait
+serait la seule restante, et le disque ne récupérerait rien avant la fin de son
+délai de vidage. sweeper vide ce réglage le temps de chaque suppression et le
+remet aussitôt après : c'est l'application qui supprime les fichiers, jamais
+sweeper. `[behaviour] skip_recycle_bin = false` garde la corbeille.
+
 L'étape 4 existe parce que Radarr et Sonarr effacent leur historique avec le
 média : restés dans leur catégorie, ces torrents reviennent dans Activity en
 « title mismatch, Manual Import required ». Ils continuent de seeder sur place :

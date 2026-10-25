@@ -140,6 +140,9 @@ class Config:
     state_dir: Path = HOME / ".local/state/sweeper"
     add_import_exclusion: bool = False
     delete_seerr_media: bool = True
+    #: bypass the Radarr/Sonarr recycle bin: once the torrents are gone too,
+    #: the copy it keeps is the only one and frees nothing until cleanup
+    skip_recycle_bin: bool = True
     #: qBittorrent category for torrents kept only to seed, out of sight of
     #: Radarr/Sonarr. Empty = leave them where they are.
     seed_category: str = "sweeper-seed"
@@ -209,6 +212,7 @@ def load(path: Path | None = None) -> Config:
         state_dir=_expand(os.environ.get("SWEEPER_STATE_DIR") or paths.get("state_dir", "~/.local/state/sweeper")),
         add_import_exclusion=bool(behaviour.get("add_import_exclusion", False)),
         delete_seerr_media=bool(behaviour.get("delete_seerr_media", True)),
+        skip_recycle_bin=bool(behaviour.get("skip_recycle_bin", True)),
         seed_category=str(behaviour.get("seed_category", "sweeper-seed")).strip(),
     )
 

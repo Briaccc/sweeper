@@ -171,6 +171,10 @@ radarr, sonarr, seerr, qbit = FakeRadarr(MOV, VIEW), FakeSonarr(TV, VIEW), FakeS
 qbit.default_save_path = VIEW.remote(DL)
 plex = Plex(PLEX_DB)
 radarr.tags = [{"id": 1, "label": "keep"}]
+# a recycle bin on the test disk: a copy left there would show in inodes()
+RECYCLE = ROOT / "recycle"
+radarr.media_management["recycleBin"] = VIEW.remote(RECYCLE / "radarr")
+sonarr.media_management["recycleBin"] = VIEW.remote(RECYCLE / "sonarr")
 F: dict[str, Path] = {}          # notable paths, for the checks
 
 
@@ -467,6 +471,15 @@ gone = {k: v for k, v in before.items() if k not in after}
 history = [json.loads(line) for line in (TMP / "state/history.jsonl").read_text().splitlines()]
 check("octets réellement disparus du disque = octets annoncés", sum(gone.values()) == sum(h["octets_libérés"] for h in history),
       f"disque {sum(gone.values())} o, journal {sum(h['octets_libérés'] for h in history)} o")
+left_in_bin = [str(f.relative_to(RECYCLE)) for f in RECYCLE.rglob("*") if f.is_file()] if RECYCLE.exists() else []
+check("corbeille *arr contournée : rien n'y a atterri", left_in_bin == [], left_in_bin)
+check("corbeille *arr : réglage vidé puis remis, pour chaque suppression",
+      radarr.recycle_puts == ["", VIEW.remote(RECYCLE / "radarr")]
+      and sonarr.recycle_puts == ["", VIEW.remote(RECYCLE / "sonarr")] * 2,
+      (radarr.recycle_puts, sonarr.recycle_puts))
+check("corbeille *arr : réglage final identique à l'original",
+      radarr.media_management["recycleBin"] == VIEW.remote(RECYCLE / "radarr")
+      and sonarr.media_management["recycleBin"] == VIEW.remote(RECYCLE / "sonarr"))
 check("M1 : les 3 noms (téléchargement, bibliothèque, cross-seed) ont disparu",
       not any(F[k].exists() for k in ("m1_dl", "m1_lib", "m1_xs")))
 check("M1 : Radarr a reçu DELETE movie/1 avec deleteFiles=true",

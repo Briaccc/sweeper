@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -87,6 +88,27 @@ class ArrClient:
     def root_folders(self) -> list[str]:
         """Root folders, as sweeper sees them."""
         return [self.paths.to_local(f["path"]) for f in self.get("rootfolder") if f.get("path")]
+
+    @contextmanager
+    def recycle_bin_bypassed(self):
+        """Blank the recycle bin setting while the block runs, then put it back.
+
+        With a recycle bin set, deleteFiles=true only moves the files there:
+        once sweeper has also removed the torrents, that copy is the only one
+        left and holds the disk until the app's cleanup days run out. Without
+        one, the app deletes the files itself — sweeper never removes a file.
+        Yields the folder that was bypassed, or "" when none was set.
+        """
+        settings = self.get("config/mediamanagement")
+        folder = settings.get("recycleBin") or ""
+        if not folder:
+            yield ""
+            return
+        self.put("config/mediamanagement", {**settings, "recycleBin": ""})
+        try:
+            yield folder
+        finally:
+            self.put("config/mediamanagement", settings)
 
     def watched_categories(self) -> set[str]:
         """qBittorrent categories the app watches: every torrent found there

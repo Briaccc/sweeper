@@ -240,6 +240,8 @@ EN: dict[str, str] = {
     "history unreadable, remaining torrents left where they are ({error})",
     "qBittorrent : {n} torrent(s) gardé(s) pour le seed, rangé(s) dans « {category} » ({names})":
     "qBittorrent: {n} torrent(s) kept for seeding, moved to “{category}” ({names})",
+    "corbeille ({folder}) contournée : fichiers supprimés pour de bon":
+    "recycle bin ({folder}) bypassed: files deleted for good",
     "aucune catégorie de seed configurée ([behaviour] seed_category)":
     "no seed category configured ([behaviour] seed_category)",
     "{n} torrent(s) rangé(s) dans « {category} »": "{n} torrent(s) moved to “{category}”",

@@ -131,9 +131,36 @@ def _remove(path: Path) -> None:
         path.unlink()
 
 
+class RecycleBin:
+    """Settings > Media Management > Recycle Bin, as Radarr and Sonarr apply
+    it: when set, deleteFiles=true moves the files there instead of deleting."""
+
+    def _init_recycle(self) -> None:
+        self.media_management = {"id": 1, "recycleBin": "", "recycleBinCleanupDays": 7}
+        self.recycle_puts: list[str] = []   # recycleBin value of every PUT, in order
+
+    def _discard(self, path: Path) -> None:
+        folder = self.media_management["recycleBin"]
+        if not folder:
+            _remove(path)
+        elif path.exists():
+            target = Path(self.v.local(folder)) / path.name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(path), str(target))
+
+    def _route_recycle(self, method, p, body):
+        if p != "config/mediamanagement":
+            return None
+        if method == "PUT":
+            self.media_management = dict(body)
+            self.recycle_puts.append(body.get("recycleBin", ""))
+            return 202, self.media_management, None
+        return 200, self.media_management, None
+
+
 # ------------------------------------------------------------------ Radarr ---
 
-class FakeRadarr(Fake):
+class FakeRadarr(RecycleBin, Fake):
     api_key = "radarr-key"
 
     def __init__(self, root_folder: Path, view: View | None = None) -> None:
@@ -145,6 +172,7 @@ class FakeRadarr(Fake):
         self.history: dict[int, list[dict]] = {}   # movieId -> records
         self.queue: list[dict] = []                # tracked downloads tied to a movie
         self.next_id = 100
+        self._init_recycle()
         super().__init__()
 
     def grab(self, movie_id: int, torrent_hash: str) -> None:
@@ -165,6 +193,8 @@ class FakeRadarr(Fake):
         p = path.removeprefix("/api/v3/")
         if method == "GET" and p == "system/status":
             return 200, {"appName": "Radarr", "version": "6.0.0-fake"}, None
+        if (answer := self._route_recycle(method, p, body)) is not None:
+            return answer
         if method == "GET" and p == "movie":
             return 200, list(self.movies.values()), None
         if method == "DELETE" and p.startswith("movie/"):
@@ -172,7 +202,7 @@ class FakeRadarr(Fake):
             if movie is None:
                 return 404, {"message": "introuvable"}, None
             if query.get("deleteFiles") == "true":
-                _remove(Path(self.v.local(movie["path"])))   # the real Radarr deletes the folder
+                self._discard(Path(self.v.local(movie["path"])))   # the real Radarr deletes the folder
             self.history.pop(movie["id"], None)              # and the history goes with the movie
             return 200, None, None
         if method == "GET" and p == "history/since":
@@ -230,7 +260,7 @@ class FakeRadarr(Fake):
 
 # ------------------------------------------------------------------ Sonarr ---
 
-class FakeSonarr(Fake):
+class FakeSonarr(RecycleBin, Fake):
     api_key = "sonarr-key"
 
     def __init__(self, root_folder: Path, view: View | None = None) -> None:
@@ -243,6 +273,7 @@ class FakeSonarr(Fake):
         self.history: list[dict] = []
         self.next_id = 100
         self.next_file = 1000
+        self._init_recycle()
         super().__init__()
 
     def grab(self, series_id: int, season: int, torrent_hash: str) -> None:
@@ -272,6 +303,8 @@ class FakeSonarr(Fake):
         p = path.removeprefix("/api/v3/")
         if method == "GET" and p == "system/status":
             return 200, {"appName": "Sonarr", "version": "4.0.0-fake"}, None
+        if (answer := self._route_recycle(method, p, body)) is not None:
+            return answer
         if method == "GET" and p == "series":
             return 200, [self._with_stats(s) for s in self.series.values()], None
         if method == "GET" and p == "episodefile":
@@ -292,7 +325,7 @@ class FakeSonarr(Fake):
         if method == "DELETE" and p == "episodefile/bulk":
             for file_id in body["episodeFileIds"]:
                 f = self.files.pop(file_id)
-                _remove(Path(self.v.local(f["path"])))
+                self._discard(Path(self.v.local(f["path"])))
             return 200, None, None
         if p.startswith("series/") and p.split("/")[1].isdigit():
             sid = int(p.split("/")[1])
@@ -308,7 +341,7 @@ class FakeSonarr(Fake):
                 for fid in [f["id"] for f in self.files.values() if f["seriesId"] == sid]:
                     self.files.pop(fid)
                 if query.get("deleteFiles") == "true":
-                    _remove(Path(self.v.local(series["path"])))
+                    self._discard(Path(self.v.local(series["path"])))
                 self.history = [r for r in self.history if r["seriesId"] != sid]
                 return 200, None, None
         if method == "GET" and p == "tag":

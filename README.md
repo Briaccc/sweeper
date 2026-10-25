@@ -266,6 +266,13 @@ A deleted season is also unmonitored in Sonarr so it does not come back.
 `add_import_exclusion = false` keeps the title downloadable if someone asks for
 it again; set it to `true` to ban it for good.
 
+Step 1 bypasses the Radarr/Sonarr recycle bin (Settings › Media Management):
+since step 2 removes the torrents, the copy it would keep is the only one
+left, and the disk gets nothing back until its cleanup days run out. sweeper
+blanks the setting for each deletion and restores it right after — the app
+deletes the files, never sweeper. `[behaviour] skip_recycle_bin = false` keeps
+the recycle bin.
+
 Step 4 exists because Radarr and Sonarr erase their history with the media:
 left in their category, those torrents come back in Activity as "title
 mismatch, Manual Import required". They keep seeding where they are — the
