@@ -85,6 +85,7 @@ const I18N_EN = {
   "Quoi afficher": "What to show",
   "Tout": "Everything",
   "Jamais vu": "Never watched",
+  "Dormant > 3 mois": "Dormant > 3 months",
   "Dormant > 6 mois": "Dormant > 6 months",
   "Candidats à la suppression": "Deletion candidates",
   "Bientôt disponibles": "Coming up soon",

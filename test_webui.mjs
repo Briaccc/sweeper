@@ -190,7 +190,17 @@ const togglers = $$('#rows td.t button').filter((b) => b.textContent.includes(tr
 const multiSeason = state.médias.filter((m) => m.kind === 'series' && !m.unmanaged
   && state.médias.filter((x) => x.kind === 'season' && x.key.startsWith(`season:${m.key.split(':')[1]}:`)).length > 1);
 check('les séries à plusieurs saisons ont un bouton de dépliage', togglers.length === multiSeason.length, `${togglers.length}/${multiSeason.length}`);
-check('un seul sélecteur de filtre, 9 vues', $('#view').options.length === 9);
+check('un seul sélecteur de filtre, 10 vues', $('#view').options.length === 10);
+const dormant = (days) => listed.filter((m) => m.idle_days !== null && m.idle_days > days);
+for (const [value, days] of [['idle3', 90], ['idle', 180]]) {
+  const view = $('#view');
+  view.value = value;
+  view.dispatchEvent(new window.Event('change'));
+  check(`filtre dormant > ${days} j : les bonnes lignes, jamais-vus exclus`, $$('#rows > tr').length === dormant(days).length,
+    `${$$('#rows > tr').length} lignes pour ${dormant(days).length}`);
+}
+$('#view').value = 'all';
+$('#view').dispatchEvent(new window.Event('change'));
 check('le sélecteur de demandeur reste caché tant qu\'aucun n\'est choisi', $('#who').hidden === true && $('#whoChip').hidden === true);
 check('6 colonnes dans la médiathèque', $$('#mediaBlock thead th').length === 6);
 check('la vue Seed seul est repliée par défaut', $('#orphans').hidden === true && $('#mediaBlock').hidden === false);

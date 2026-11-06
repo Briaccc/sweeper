@@ -367,6 +367,7 @@ function visible() {
     const idle = item.idle_days;
     for (const f of (viewFilter === 'all' ? [] : [viewFilter])) {
       if (f === 'never' && item.last_viewed) return false;
+      if (f === 'idle3' && !(idle !== null && idle > 90)) return false;
       if (f === 'idle' && !(idle !== null && idle > 180)) return false;
       if (f === 'candidate' && !item.actionable) return false;
       if (f === 'blocked' && !(item.eligible && !item.actionable)) return false;
