@@ -764,6 +764,20 @@ check("… Film Auto supprimé par la règle", not F["m9_lib"].exists() and "h_m
 check("… les protégés n'ont pas bougé", all(F[k].exists() for k in ("m2_lib", "m3_lib", "m5_lib", "m6_lib", "s3_a", "s3_b")))
 s.post(f"{BASE}/api/schedule", json={"enabled": False, "interval_minutes": 360, "apply_rules": False, "apply_watchlist": True})
 
+# a folder torrent (video + nfo) and its bare-video twin: same video, two batches
+F["t_dir"] = put(DL / "Twin.Dir/t.mkv", 3000)
+put(DL / "Twin.Dir/t.nfo", 10)
+F["t_bare"] = link(F["t_dir"], XS / "Twin.Bare.mkv")
+qbit.add("h_tdir", "Twin.Dir", DL / "Twin.Dir", DL, 2.0, 60, "tracker.gamma.org")
+qbit.add("h_tbare", "Twin.Bare.mkv", F["t_bare"], XS, 0.1, 2, "tracker.delta.org")
+s.post(f"{BASE}/api/refresh")
+twins = {g["name"]: g for g in st()["orphelins"] if g["name"].startswith("Twin.")}
+check("torrent dossier et jumeau mkv seul : deux lots, deux clés", len(twins) == 2 and twins["Twin.Dir"]["key"] != twins["Twin.Bare.mkv"]["key"], twins)
+all_keys = [g["key"] for g in st()["orphelins"]]
+check("aucune clé de lot en double", len(all_keys) == len(set(all_keys)), all_keys)
+j = job(s.post(f"{BASE}/api/orphans/delete", json={"clés": [twins["Twin.Dir"]["key"]]}))
+check("retirer un lot ne retire pas son jumeau", j["total"] == 1 and "h_tdir" not in qbit.torrents and "h_tbare" in qbit.torrents and F["t_bare"].exists(), j)
+
 S2 = st()
 check("derniers travaux listés", len(S2["derniers_travaux"]) >= 6, len(S2["derniers_travaux"]))
 check("travaux persistés sur disque", (TMP / "state/jobs.jsonl").read_text().count("\n") >= 6)

@@ -13,6 +13,7 @@ This module catches the second case, which is a costly blind spot.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -51,6 +52,16 @@ class OrphanGroup:
         return sorted({t.tracker_host for t in self.torrents if t.tracker_host})
 
 
+def _batch_key(inodes: frozenset[tuple[int, int]]) -> str:
+    """Stable across refreshes and unique per batch.
+
+    Built from the whole inode set: a folder torrent (video + nfo) and its
+    bare-video twin share their video, so any single inode would give both
+    batches the same key, and selecting one would select the other.
+    """
+    return hashlib.sha1(repr(sorted(inodes)).encode()).hexdigest()[:16]
+
+
 def find(
     link_map: LinkMap,
     torrents: list[Torrent],
@@ -84,7 +95,7 @@ def find(
         group = groups.get(inodes)
         if group is None:
             group = OrphanGroup(
-                key="%d-%d" % min(inodes),     # lowest (device, inode) pair: stable across refreshes
+                key=_batch_key(inodes),
                 name=" ".join(torrent.name.split()),
                 bytes=sum(link_map.size_by_inode.get(i, 0) for i in inodes),
                 files=len(inodes),
