@@ -445,12 +445,14 @@ class FakeQbit(Fake):
         self.default_save_path = ""
         super().__init__()
 
-    def add(self, hash, name, content: Path, save: Path, ratio, seed_days, tracker, category="radarr", auto_tmm=False):
+    def add(self, hash, name, content: Path, save: Path, ratio, seed_days, tracker, category="radarr", auto_tmm=False,
+            idle_days=None):
         size = sum(f.stat().st_size for f in content.rglob("*") if f.is_file()) if content.is_dir() else content.stat().st_size
         self.torrents[hash] = {"hash": hash, "name": name, "category": category, "state": "stalledUP",
                                "size": size, "ratio": ratio, "seeding_time": int(seed_days * 86400),
                                "content_path": self.v.remote(content), "save_path": self.v.remote(save),
-                               "tracker": f"https://{tracker}/announce", "auto_tmm": auto_tmm, "progress": 1.0}
+                               "tracker": f"https://{tracker}/announce", "auto_tmm": auto_tmm, "progress": 1.0,
+                               "last_activity": int(time.time() - idle_days * 86400) if idle_days is not None else 0}
 
     def expire_session(self) -> None:
         """Like WebUI\\SessionTimeout: the SID handed out earlier now gets a 403."""

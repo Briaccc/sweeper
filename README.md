@@ -305,6 +305,11 @@ rules, at a regular interval — through the same job queue as the interface, so
 it can never land in the middle of a deletion you started. It is off by
 default.
 
+It can also remove **idle seed-only batches**: seeding paid, finished, no data
+moved for 7 days (adjustable), nothing an *arr still waits for. Those bytes
+serve nothing in the library, and nothing else ever frees them. Also off by
+default, and held to the same `[limits]` per run as the rules.
+
 Prefer cron? Use one or the other, not both:
 
 ```cron

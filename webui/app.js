@@ -1237,6 +1237,12 @@ function renderSchedule() {
       el('input', { type: 'checkbox', checked: sc.apply_rules,
         onchange: e => push({ apply_rules: e.target.checked }) }),
       t('Appliquer les règles')),
+    el('label', { title: t('Seed payé, aucune donnée échangée, rien sur la bibliothèque') },
+      el('input', { type: 'checkbox', checked: sc.apply_orphans,
+        onchange: e => push({ apply_orphans: e.target.checked }) }),
+      t('Retirer les lots Seed seul inactifs depuis '),
+      el('input', { type: 'number', min: 1, value: sc.orphans_idle_days,
+        onchange: e => push({ orphans_idle_days: +e.target.value }) }), t(' jours')),
     el('button', { class: 'act', style: 'margin-left:auto',
       onclick: async e => {
         e.target.disabled = true;

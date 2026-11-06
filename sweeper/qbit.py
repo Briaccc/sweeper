@@ -28,6 +28,8 @@ class Torrent:
     #: automatic torrent management: qBittorrent moves the data when the category changes
     auto_tmm: bool = False
     progress: float = 1.0
+    #: last time data moved, in Unix time; 0 = unknown
+    last_activity: int = 0
 
     @property
     def seeding_days(self) -> float:
@@ -106,6 +108,7 @@ class QBittorrent:
                 tracker=entry.get("tracker", ""),
                 auto_tmm=bool(entry.get("auto_tmm", False)),
                 progress=float(entry.get("progress", 1.0)),
+                last_activity=int(entry.get("last_activity", 0)),
             )
             for entry in self._get("torrents/info", **params)
         ]

@@ -318,6 +318,12 @@ le cochez, les règles, à intervalle régulier — par la même file de travaux
 l'interface : il ne peut jamais tomber au milieu d'une suppression que vous
 venez de lancer. Il est désactivé par défaut.
 
+Il peut aussi retirer les **lots « Seed seul » inactifs** : seed payé, torrent
+terminé, aucune donnée échangée depuis 7 jours (réglable), rien qu'un *arr
+attende encore. Ces octets ne servent plus à la bibliothèque, et rien d'autre
+ne les libère. Désactivé par défaut lui aussi, et soumis aux mêmes `[limits]`
+par passage que les règles.
+
 Vous préférez cron ? L'un ou l'autre, pas les deux :
 
 ```cron

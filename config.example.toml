@@ -184,3 +184,7 @@ enabled = false
 interval_minutes = 360
 apply_rules = false
 apply_watchlist = true
+# true = also remove seed-only batches whose seeding is paid and that have not
+# moved any data for orphans_idle_days. Within the [limits] of a run.
+apply_orphans = false
+orphans_idle_days = 7

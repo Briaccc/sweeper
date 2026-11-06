@@ -237,7 +237,7 @@ check('conséquence de l\'ordre expliquée', $('#orderNote').textContent.length 
 check('note d\'aperçu rédigée', $('#previewNote').textContent.length > 20, '« ' + $('#previewNote').textContent.slice(0, 60) + '… »');
 check('chaque règle affiche son bilan', cards.every((c) => c.textContent.includes(tr('jamais exécutée'))
   || c.textContent.includes(tr('{n} supprimé(s) · {size} · dernier {date}').split(' · ')[0].replace('{n} ', ''))));
-check('panneau de planification : 5 contrôles', $('#schedule').children.length === 5);
+check('panneau de planification : 6 contrôles', $('#schedule').children.length === 6);
 check('note de planification rédigée', $('#scheduleNote').textContent.length > 20);
 check('liste de file rendue', $('#queueList').children.length >= 1);
 check('garde-fous mentionnent la protection des visionnages', lang === 'en'

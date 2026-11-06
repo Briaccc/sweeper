@@ -123,6 +123,9 @@ class Schedule:
     interval_minutes: int = 360
     apply_rules: bool = False
     apply_watchlist: bool = True
+    #: also remove seed-only batches whose seeding is paid and that sit idle
+    apply_orphans: bool = False
+    orphans_idle_days: int = 7
 
 
 @dataclass
@@ -244,6 +247,8 @@ def load(path: Path | None = None) -> Config:
             interval_minutes=max(int(schedule.get("interval_minutes", 360)), 15),
             apply_rules=bool(schedule.get("apply_rules", False)),
             apply_watchlist=bool(schedule.get("apply_watchlist", True)),
+            apply_orphans=bool(schedule.get("apply_orphans", False)),
+            orphans_idle_days=max(int(schedule.get("orphans_idle_days", 7)), 1),
         )
     web = raw.get("web", {})
     config.web_port = int(web.get("port", 29320))
@@ -342,7 +347,10 @@ def write_rules(path: Path, rules: list[Rule]) -> None:
     _save(path, updated)
 
 
-_SCHEDULE_KEYS = ("enabled", "interval_minutes", "apply_rules", "apply_watchlist")
+_SCHEDULE_KEYS = (
+    "enabled", "interval_minutes", "apply_rules", "apply_watchlist",
+    "apply_orphans", "orphans_idle_days",
+)
 
 
 def write_schedule(path: Path, schedule: Schedule) -> None:

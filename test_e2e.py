@@ -537,6 +537,7 @@ check("--config vers un fichier absent : erreur, et aucun fichier créé", r.ret
       (r.stderr.strip().splitlines() or ["?"])[-1][:90])
 sys.path.insert(0, str(HERE))
 from sweeper import config as config_module  # noqa: E402
+from sweeper import orphans as orphans_module  # noqa: E402
 try:
     config_module.load(fresh)
     check("init : le fichier généré se charge", True)
@@ -777,6 +778,47 @@ all_keys = [g["key"] for g in st()["orphelins"]]
 check("aucune clé de lot en double", len(all_keys) == len(set(all_keys)), all_keys)
 j = job(s.post(f"{BASE}/api/orphans/delete", json={"clés": [twins["Twin.Dir"]["key"]]}))
 check("retirer un lot ne retire pas son jumeau", j["total"] == 1 and "h_tdir" not in qbit.torrents and "h_tbare" in qbit.torrents and F["t_bare"].exists(), j)
+
+# idle seed-only batches: only the first case below may go on its own
+def batch(key, name, ratio, seed_days, idle_days, size=900):
+    F[key] = put(DL / name / "v.mkv", size)
+    qbit.add(f"h_{key}", name, DL / name, DL, ratio, seed_days, "tracker.gamma.org", idle_days=idle_days)
+
+batch("r_idle", "Idle.Paid", 2.0, 60, 10)
+batch("r_active", "Active.Paid", 2.0, 60, 1)
+batch("r_unpaid", "Idle.Unpaid", 0.1, 3, 10)
+batch("r_unknown", "Unknown.Activity", 2.0, 60, None)
+batch("r_queued", "Idle.Queued", 2.0, 60, 10)
+radarr.queue.append({"movieId": 3, "downloadId": "H_R_QUEUED", "title": "Idle.Queued", "trackedDownloadState": "importBlocked"})
+batch("r_broken", "Idle.Broken", 2.0, 60, 10)
+qbit.torrents["h_r_broken"]["state"] = "missingFiles"
+# same files, two lots: the second torrent is unpaid and uses one of the first's names
+batch("r_shared", "Idle.Shared", 2.0, 60, 10)
+put(DL / "Idle.Shared/extra.nfo", 10)
+qbit.add("h_r_part", "v.mkv", F["r_shared"], DL / "Idle.Shared", 0.1, 3, "tracker.delta.org", idle_days=10)
+# one torrent of the lot still uploading
+batch("r_mixed", "Mixed.Lot", 2.0, 60, 10)
+qbit.add("h_r_mixed2", "Mixed.Twin", link(F["r_mixed"], XS / "Mixed.Twin.mkv"), XS, 2.0, 60, "tracker.delta.org", idle_days=1)
+idle_cases = ("r_idle", "r_active", "r_unpaid", "r_unknown", "r_queued", "r_broken", "r_shared", "r_mixed")
+
+s.post(f"{BASE}/api/refresh")
+j = job(s.post(f"{BASE}/api/run-now", json={}))
+check("retrait des lots inactifs désactivé par défaut : rien ne part", all(F[k].exists() for k in idle_cases), j)
+r = s.post(f"{BASE}/api/schedule", json={"enabled": True, "apply_orphans": True, "orphans_idle_days": 7}).json()
+check("réglage enregistré et relu", r["planification"]["apply_orphans"] is True
+      and config_module.load(CFG).schedule.apply_orphans is True and config_module.load(CFG).schedule.orphans_idle_days == 7)
+s.post(f"{BASE}/api/refresh")
+check("seul le lot retirable compte parmi les prêts à partir", st()["en_attente_prêts"]["lots"] == 1, st()["en_attente_prêts"])
+cfg_limits = config_module.Limits(max_items_per_run=1, max_gb_per_run=400)
+check("le plafond de passage s'applique", len(orphans_module.retirable(state.orphans, state.queued, 7, cfg_limits)) == 1)
+j = job(s.post(f"{BASE}/api/run-now", json={}))
+check("passage : le lot payé et inactif est retiré, fichier compris", j["erreur"] is None and "h_r_idle" not in qbit.torrents and not F["r_idle"].exists(), j)
+for key, why in (("r_active", "encore actif"), ("r_unpaid", "seed non payé"), ("r_unknown", "activité inconnue"),
+                 ("r_queued", "attendu par Radarr"), ("r_broken", "fichiers manquants"),
+                 ("r_shared", "fichier partagé avec un torrent gardé"), ("r_mixed", "un torrent du lot actif")):
+    check(f"passage : lot gardé, {why}", F[key].exists() and f"h_{key}" in qbit.torrents, sorted(qbit.torrents))
+s.post(f"{BASE}/api/schedule", json={"enabled": False, "apply_orphans": False})
+radarr.queue[:] = [q for q in radarr.queue if q["downloadId"] != "H_R_QUEUED"]
 
 S2 = st()
 check("derniers travaux listés", len(S2["derniers_travaux"]) >= 6, len(S2["derniers_travaux"]))

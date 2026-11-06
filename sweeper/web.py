@@ -93,6 +93,8 @@ class State:
         self.growth: dict[str, int] = {}
         self.composition: dict[str, int] = {}
         self.orphans: list = []
+        #: torrents the *arr queues still tie to a media; None = could not be read
+        self.queued: set[str] | None = None
         #: qBittorrent categories Radarr/Sonarr watch
         self.watched_categories: set[str] = set()
         #: torrents in those categories that neither app recognises anymore
@@ -131,8 +133,17 @@ class State:
         wanted = self.watchlist.keys("orphan")
         return [g for g in self.orphans if g.key in wanted and g.seed_ok]
 
+    def due_idle_orphans(self) -> list:
+        """Seed-only batches the automatic run removes on its own, if asked to."""
+        schedule = self.config.schedule
+        if not schedule.apply_orphans or self.queued is None:
+            return []
+        return orphans_module.retirable(
+            self.orphans, self.queued, schedule.orphans_idle_days, self.config.limits
+        )
+
     def run_scheduled(self, job) -> None:
-        """One automatic pass: the queue first, then the rules."""
+        """One automatic pass: the queue first, then idle batches, then the rules."""
         schedule = self.config.schedule
         engine = self.engine
         if engine is None:
@@ -153,6 +164,14 @@ class State:
                 for group in orphan_groups:
                     self.watchlist.remove(group.key)
             self.watchlist.save()
+        if schedule.apply_orphans:
+            self.refresh()   # activity and *arr queues as they are now
+            orphan_groups = self.due_idle_orphans()
+            job.total += len(orphan_groups)
+            if orphan_groups:
+                self.engine.delete_orphan_groups(
+                    orphan_groups, progress=lambda r: _tick(job, r)
+                )
         if schedule.apply_rules:
             from .plexdb import load_snapshot  # local: avoids a circular import
 
@@ -225,6 +244,10 @@ class State:
                 orphans = orphans_module.find(
                     link_map, all_torrents, library_roots, self.config.seeding
                 )
+                try:
+                    queued = radarr.queued_hashes() | sonarr.queued_hashes()
+                except Exception:  # noqa: BLE001 - no queue, no automatic removal
+                    queued = None
                 watched, unknown = set(), set()
                 try:   # only feeds a hint in the UI
                     watched = radarr.watched_categories() | sonarr.watched_categories()
@@ -245,6 +268,7 @@ class State:
                            else unseen[0] if unseen else None)
                 self.missing_files = {"éléments": len(blind) + len(unseen), "exemple": example}
                 self.inventory, self.orphans = inventory, orphans
+                self.queued = queued
                 self.watched_categories, self.unknown_to_arr = watched, unknown
                 self.requesters, self.trackers = requesters, trackers
                 self.engine = engine
@@ -417,6 +441,8 @@ def _schedule_json(schedule: Schedule) -> dict[str, Any]:
         "interval_minutes": schedule.interval_minutes,
         "apply_rules": schedule.apply_rules,
         "apply_watchlist": schedule.apply_watchlist,
+        "apply_orphans": schedule.apply_orphans,
+        "orphans_idle_days": schedule.orphans_idle_days,
     }
 
 
@@ -468,6 +494,10 @@ def state_payload(state: State) -> dict[str, Any]:
     never = [c for c in inventory if not c.stats.last_viewed and c.kind != "season"]
     months = sorted(state.growth.items())[-12:]
     recent = [octets for _mois, octets in months[-6:]]
+    ready_batches = {g.key: g for g in state.due_orphans()}
+    if cfg.schedule.enabled:
+        ready_batches |= {g.key: g for g in state.due_idle_orphans()}
+    ready_batches = list(ready_batches.values())
     return {
         "calculé_à": state.computed_at,
         "quota": state.quota,
@@ -531,9 +561,9 @@ def state_payload(state: State) -> dict[str, Any]:
         "file_attente": state.watchlist.as_json(),
         "en_attente_prêts": {
             "médias": len(state.due_media()),
-            "lots": len(state.due_orphans()),
+            "lots": len(ready_batches),
             "octets": sum(c.freed_bytes for c in state.due_media())
-            + sum(g.bytes for g in state.due_orphans()),
+            + sum(g.bytes for g in ready_batches),
         },
         "trackers": [t.as_json() for t in state.trackers],
         "demandes": state.requesters,
@@ -1227,6 +1257,10 @@ class Handler(BaseHTTPRequestHandler):
             ),
             apply_rules=bool(payload.get("apply_rules", current.apply_rules)),
             apply_watchlist=bool(payload.get("apply_watchlist", current.apply_watchlist)),
+            apply_orphans=bool(payload.get("apply_orphans", current.apply_orphans)),
+            orphans_idle_days=max(
+                int(payload.get("orphans_idle_days", current.orphans_idle_days)), 1
+            ),
         )
         config_module.write_schedule(self.state.config.config_path, schedule)
         self.state.config.schedule = schedule
