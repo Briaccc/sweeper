@@ -452,6 +452,10 @@ class FakeQbit(Fake):
                                "content_path": self.v.remote(content), "save_path": self.v.remote(save),
                                "tracker": f"https://{tracker}/announce", "auto_tmm": auto_tmm, "progress": 1.0}
 
+    def expire_session(self) -> None:
+        """Like WebUI\\SessionTimeout: the SID handed out earlier now gets a 403."""
+        self.SID += "-new"
+
     def _category_path(self, name: str) -> str:
         explicit = self.categories[name]["savePath"]
         return explicit or f"{self.default_save_path.rstrip('/')}/{name}"

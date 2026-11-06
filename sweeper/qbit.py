@@ -64,21 +64,29 @@ class QBittorrent:
             raise RuntimeError(t("qBittorrent : identifiants refusés"))
         self._logged_in = True
 
-    def _get(self, path: str, **params: Any) -> Any:
+    def _request(self, method: str, path: str, **kwargs: Any) -> requests.Response:
+        """Call the API, logging in again if the session has expired.
+
+        qBittorrent drops an idle session after WebUI\\SessionTimeout and answers
+        403, while this client can sit idle for longer between two refreshes.
+        Without a retry, the torrents of a deletion stay and keep the bytes.
+        """
         self.login()
-        response = self.session.get(
-            f"{self.base_url}/api/v2/{path}", params=params, timeout=self.timeout
-        )
+        url = f"{self.base_url}/api/v2/{path}"
+        response = self.session.request(method, url, timeout=self.timeout, **kwargs)
+        if response.status_code == 403:
+            self._logged_in = False
+            self.session.cookies.clear()
+            self.login()
+            response = self.session.request(method, url, timeout=self.timeout, **kwargs)
         response.raise_for_status()
-        return response.json()
+        return response
+
+    def _get(self, path: str, **params: Any) -> Any:
+        return self._request("GET", path, params=params).json()
 
     def version(self) -> str:
-        self.login()
-        response = self.session.get(
-            f"{self.base_url}/api/v2/app/version", timeout=self.timeout
-        )
-        response.raise_for_status()
-        return response.text.strip()
+        return self._request("GET", "app/version").text.strip()
 
     def torrents(self, hashes: list[str] | None = None) -> list[Torrent]:
         if hashes is not None and not hashes:
@@ -103,11 +111,7 @@ class QBittorrent:
         ]
 
     def _post(self, path: str, **data: str) -> None:
-        self.login()
-        response = self.session.post(
-            f"{self.base_url}/api/v2/{path}", data=data, timeout=self.timeout
-        )
-        response.raise_for_status()
+        self._request("POST", path, data=data)
 
     def categories(self) -> dict[str, str]:
         """Category name -> its save path as configured ("" = implicit)."""
@@ -155,13 +159,8 @@ class QBittorrent:
     def delete(self, hashes: list[str], delete_files: bool = True) -> None:
         if not hashes:
             return
-        self.login()
-        response = self.session.post(
-            f"{self.base_url}/api/v2/torrents/delete",
-            data={
-                "hashes": "|".join(hashes),
-                "deleteFiles": "true" if delete_files else "false",
-            },
-            timeout=self.timeout,
+        self._post(
+            "torrents/delete",
+            hashes="|".join(hashes),
+            deleteFiles="true" if delete_files else "false",
         )
-        response.raise_for_status()

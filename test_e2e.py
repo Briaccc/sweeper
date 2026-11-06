@@ -652,10 +652,15 @@ check("supprimer un hors *arr : refusé, aucun appel Radarr", j["total"] == 0 an
 
 j = job(s.post(f"{BASE}/api/delete", json={"clés": ["movie:4"]}))
 check("M4 sans forcer : refusé (seed insuffisant)", j["total"] == 0 and F["m4_lib"].exists())
+qbit.expire_session()   # the session this client opened earlier is now refused with a 403
 j = job(s.post(f"{BASE}/api/delete", json={"clés": ["movie:4"], "forcer_seed": True}))
 check("M4 en forçant le seed : film, fichier de téléchargement ET torrent partis", j["faits"] == 1 and not F["m4_lib"].exists()
       and not F["m4_dl"].exists() and "h_m4" not in qbit.torrents, j)
 check("… et les octets libérés sont réels (4 300 o, pas 0)", j["octets_libérés"] == 4300, j["octets_libérés"])
+check("session qBittorrent expirée : reconnexion, aucune erreur dans le journal",
+      not json.loads((TMP / "state/history.jsonl").read_text().splitlines()[-1])["erreurs"])
+left_in_bin = [str(f.relative_to(RECYCLE)) for f in RECYCLE.rglob("*") if f.is_file()] if RECYCLE.exists() else []
+check("suppression depuis l'interface : rien dans la corbeille *arr non plus", left_in_bin == [], left_in_bin)
 
 o1 = orph["Old.Release"]["key"]; o2 = orph["Young.Orphan"]["key"]
 j = job(s.post(f"{BASE}/api/orphans/delete", json={"clés": [o1]}))
